@@ -66,7 +66,37 @@ impl<W: BaseExt, N: FieldExt> Context<W, N> {
         let ab00 = self.fq2_mul(&a.0, &b.0);
         let ab11 = self.fq2_mul(&a.1, &b.1);
         let ab22 = self.fq2_mul(&a.2, &b.2);
-        todo!()
+
+        let c0 = {
+            let b12 = self.fq2_add(&b.1, &b.2);
+            let a12 = self.fq2_add(&a.1, &a.2);
+            let t = self.fq2_mul(&a12, &b12);
+            let t = self.fq2_sub(&t, &ab11);
+            let t = self.fq2_sub(&t, &ab22);
+            let t = self.fq2_mul_by_nonresidue(&t);
+            self.fq2_add(&t, &ab00)
+        };
+
+        let c1 = {
+            let b01 = self.fq2_add(&b.0, &b.1);
+            let a01 = self.fq2_add(&a.0, &a.1);
+            let t = self.fq2_mul(&a01, &b01);
+            let t = self.fq2_sub(&t, &ab00);
+            let t = self.fq2_sub(&t, &ab11);
+            let t = self.fq2_mul_by_nonresidue(&t);
+            self.fq2_add(&t, &ab22)
+        };
+
+        let c2 = {
+            let b02 = self.fq2_add(&b.0, &b.2);
+            let a02 = self.fq2_add(&a.0, &a.2);
+            let t = self.fq2_mul(&a02, &b02);
+            let t = self.fq2_sub(&t, &ab00);
+            let t = self.fq2_add(&t, &ab11);
+            self.fq2_sub(&t, &ab22)
+        };
+
+        (c0, c1, c2)
     }
     fn fq6_sub(&mut self, a: &AssignedFq6<W, N>, b: &AssignedFq6<W, N>) -> AssignedFq6<W, N> {
         (
@@ -77,9 +107,9 @@ impl<W: BaseExt, N: FieldExt> Context<W, N> {
     }
     fn fq6_double(&mut self, a: &AssignedFq6<W, N>) -> AssignedFq6<W, N> {
         (
-            self.fq2_add(&a.0, &a.0),
-            self.fq2_add(&a.1, &a.1),
-            self.fq2_add(&a.2, &a.2),
+            self.fq2_double(&a.0),
+            self.fq2_double(&a.1),
+            self.fq2_double(&a.2),
         )
     }
     fn fq6_squre(&mut self, a: &AssignedFq6<W, N>) -> AssignedFq6<W, N> {
@@ -94,15 +124,39 @@ impl<W: BaseExt, N: FieldExt> Context<W, N> {
 
     fn fq6_mul_by_01(
         &mut self,
-        x: &AssignedFq6<W, N>,
-        c0: &AssignedFq2<W, N>,
-        c1: &AssignedFq2<W, N>,
+        a: &AssignedFq6<W, N>,
+        b0: &AssignedFq2<W, N>,
+        b1: &AssignedFq2<W, N>,
     ) -> AssignedFq6<W, N> {
-        let a = self.fq2_mul(&x.0, c0);
-        let b = self.fq2_mul(&x.1, c1);
+        let ab00 = self.fq2_mul(&a.0, &b0);
+        let ab11 = self.fq2_mul(&a.1, &b1);
 
-        // ((x.1 + x.2) * c1 - b) * nonresidue + a
-        todo!()
+        let c0 = {
+            let b12 = b1;
+            let a12 = self.fq2_add(&a.1, &a.2);
+            let t = self.fq2_mul(&a12, &b12);
+            let t = self.fq2_sub(&t, &ab11);
+            let t = self.fq2_mul_by_nonresidue(&t);
+            self.fq2_add(&t, &ab00)
+        };
+
+        let c1 = {
+            let b01 = self.fq2_add(b0, b1);
+            let a01 = self.fq2_add(&a.0, &a.1);
+            let t = self.fq2_mul(&a01, &b01);
+            let t = self.fq2_sub(&t, &ab00);
+            self.fq2_sub(&t, &ab11)
+        };
+
+        let c2 = {
+            let b02 = b0;
+            let a02 = self.fq2_add(&a.0, &a.2);
+            let t = self.fq2_mul(&a02, &b02);
+            let t = self.fq2_sub(&t, &ab00);
+            self.fq2_add(&t, &ab11)
+        };
+
+        (c0, c1, c2)
     }
 }
 
