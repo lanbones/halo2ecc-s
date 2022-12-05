@@ -154,13 +154,12 @@ impl<'a, N: FieldExt> From<&'a AssignedValue<N>> for ValueSchema<'a, N> {
     }
 }
 
-pub type AssignedFq<W: BaseExt, N: FieldExt> = AssignedInteger<W, N>;
-pub type AssignedFq2<W: BaseExt, N: FieldExt> = (AssignedFq<W, N>, AssignedFq<W, N>);
-pub type AssignedFq6<W: BaseExt, N: FieldExt> =
-    (AssignedFq2<W, N>, AssignedFq2<W, N>, AssignedFq2<W, N>);
-pub type AssignedFq12<W: BaseExt, N: FieldExt> = (AssignedFq6<W, N>, AssignedFq6<W, N>);
+pub type AssignedFq<W, N> = AssignedInteger<W, N>;
+pub type AssignedFq2<W, N> = (AssignedFq<W, N>, AssignedFq<W, N>);
+pub type AssignedFq6<W, N> = (AssignedFq2<W, N>, AssignedFq2<W, N>, AssignedFq2<W, N>);
+pub type AssignedFq12<W, N> = (AssignedFq6<W, N>, AssignedFq6<W, N>);
 
-pub type AssignedG1Affine<C: CurveAffine, N: FieldExt> = AssignedPoint<C, N>;
+pub type AssignedG1Affine<C, N> = AssignedPoint<C, N>;
 pub struct AssignedG2Affine<C: CurveAffine, N: FieldExt>(
     pub (AssignedG1Affine<C, N>, AssignedG1Affine<C, N>),
 );

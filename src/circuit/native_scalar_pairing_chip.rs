@@ -1,4 +1,4 @@
-use crate::assign::{AssignedFq, AssignedFq6};
+use crate::assign::AssignedFq6;
 use crate::circuit::integer_chip::IntegerChipOps;
 use crate::context::Context;
 use crate::{
@@ -39,12 +39,59 @@ impl<W: BaseExt, N: FieldExt> Context<W, N> {
     fn fq2_conjugate(&mut self, a: &AssignedFq2<W, N>) -> AssignedFq2<W, N> {
         (a.0, self.int_neg(&a.1))
     }
-    fn mul_by_nonresidue(&mut self, a: &AssignedFq2<W, N>) -> AssignedFq2<W, N> {
-        todo!()
+    fn fq2_mul_by_nonresidue(&mut self, a: &AssignedFq2<W, N>) -> AssignedFq2<W, N> {
+        let a2 = self.fq2_double(a);
+        let a4 = self.fq2_double(&a2);
+        let a8 = self.fq2_double(&a4);
+
+        let t = self.int_add(&a8.0, &a.0);
+        let c0 = self.int_sub(&t, &a.1);
+
+        let t = self.int_add(&a8.1, &a.0);
+        let c1 = self.int_add(&t, &a.1);
+
+        (c0, c1)
     }
 }
 
 impl<W: BaseExt, N: FieldExt> Context<W, N> {
+    fn fq6_add(&mut self, a: &AssignedFq6<W, N>, b: &AssignedFq6<W, N>) -> AssignedFq6<W, N> {
+        (
+            self.fq2_add(&a.0, &b.0),
+            self.fq2_add(&a.1, &b.1),
+            self.fq2_add(&a.2, &b.2),
+        )
+    }
+    fn fq6_mul(&mut self, a: &AssignedFq6<W, N>, b: &AssignedFq6<W, N>) -> AssignedFq6<W, N> {
+        let ab00 = self.fq2_mul(&a.0, &b.0);
+        let ab11 = self.fq2_mul(&a.1, &b.1);
+        let ab22 = self.fq2_mul(&a.2, &b.2);
+        todo!()
+    }
+    fn fq6_sub(&mut self, a: &AssignedFq6<W, N>, b: &AssignedFq6<W, N>) -> AssignedFq6<W, N> {
+        (
+            self.fq2_sub(&a.0, &b.0),
+            self.fq2_sub(&a.1, &b.1),
+            self.fq2_sub(&a.2, &b.2),
+        )
+    }
+    fn fq6_double(&mut self, a: &AssignedFq6<W, N>) -> AssignedFq6<W, N> {
+        (
+            self.fq2_add(&a.0, &a.0),
+            self.fq2_add(&a.1, &a.1),
+            self.fq2_add(&a.2, &a.2),
+        )
+    }
+    fn fq6_squre(&mut self, a: &AssignedFq6<W, N>) -> AssignedFq6<W, N> {
+        self.fq6_mul(a, a)
+    }
+    fn fq6_neg(&mut self, a: &AssignedFq6<W, N>) -> AssignedFq6<W, N> {
+        (self.fq2_neg(&a.0), self.fq2_neg(&a.1), self.fq2_neg(&a.2))
+    }
+    fn fq6_mul_by_nonresidue(&mut self, a: &AssignedFq6<W, N>) -> AssignedFq6<W, N> {
+        todo!()
+    }
+
     fn fq6_mul_by_01(
         &mut self,
         x: &AssignedFq6<W, N>,
