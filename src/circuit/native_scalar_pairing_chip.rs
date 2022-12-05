@@ -121,7 +121,28 @@ impl<W: BaseExt, N: FieldExt> Context<W, N> {
     fn fq6_mul_by_nonresidue(&mut self, a: &AssignedFq6<W, N>) -> AssignedFq6<W, N> {
         (self.fq2_mul_by_nonresidue(&a.2), a.0, a.1)
     }
+    fn fq6_mul_by_1(&mut self, a: &AssignedFq6<W, N>, b1: &AssignedFq2<W, N>) -> AssignedFq6<W, N> {
+        let ab11 = self.fq2_mul(&a.1, &b1);
 
+        let c0 = {
+            let b12 = b1;
+            let a12 = self.fq2_add(&a.1, &a.2);
+            let t = self.fq2_mul(&a12, &b12);
+            let t = self.fq2_sub(&t, &ab11);
+            self.fq2_mul_by_nonresidue(&t)
+        };
+
+        let c1 = {
+            let b01 = b1;
+            let a01 = self.fq2_add(&a.0, &a.1);
+            let t = self.fq2_mul(&a01, &b01);
+            self.fq2_sub(&t, &ab11)
+        };
+
+        let c2 = ab11;
+
+        (c0, c1, c2)
+    }
     fn fq6_mul_by_01(
         &mut self,
         a: &AssignedFq6<W, N>,
@@ -193,6 +214,27 @@ impl<W: BaseExt, N: FieldExt> Context<W, N> {
     }
     fn fq12_conjugate(&mut self, x: &AssignedFq12<W, N>) -> AssignedFq12<W, N> {
         (x.0, self.fq6_neg(&x.1))
+    }
+    fn fq12_mul_by_014(
+        &mut self,
+        x: &AssignedFq12<W, N>,
+        c0: &AssignedFq2<W, N>,
+        c1: &AssignedFq2<W, N>,
+        c4: &AssignedFq2<W, N>,
+    ) -> AssignedFq12<W, N> {
+        let t0 = self.fq6_mul_by_01(&x.0, c0, c1);
+        let t1 = self.fq6_mul_by_1(&x.1, c4);
+        let o = self.fq2_add(c1, c4);
+
+        let x0 = self.fq6_add(&x.0, &x.1);
+        let x0 = self.fq6_mul_by_01(&x0, c0, &o);
+        let x0 = self.fq6_sub(&x0, &t0);
+        let x0 = self.fq6_sub(&x0, &t1);
+
+        let x1 = self.fq6_mul_by_nonresidue(&t1);
+        let x1 = self.fq6_add(&x1, &t0);
+
+        (x0, x1)
     }
     fn fq12_mul_by_034(
         &mut self,
