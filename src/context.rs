@@ -35,7 +35,7 @@ impl<W: BaseExt, N: FieldExt> Display for Context<W, N> {
 }
 
 #[repr(transparent)]
-pub struct EccContext<C: CurveAffine>(
+pub struct NativeScalarEccContext<C: CurveAffine>(
     pub Context<<C as CurveAffine>::Base, <C as CurveAffine>::ScalarExt>,
 );
 

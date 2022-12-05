@@ -10,7 +10,7 @@ use super::base_chip::BaseChipOps;
 use super::integer_chip::IntegerChipOps;
 use crate::assign::{AssignedCondition, AssignedCurvature, AssignedPoint};
 use crate::assign::{AssignedPointWithCurvature, AssignedValue};
-use crate::context::{Context, EccContext};
+use crate::context::NativeScalarEccContext;
 use crate::pair;
 use crate::range_info::LIMB_BITS;
 use crate::utils::{bn_to_field, field_to_bn};
@@ -120,7 +120,7 @@ pub trait EccChipAlgorithms<C: CurveAffine> {
     ) -> AssignedPoint<C, C::ScalarExt>;
 }
 
-impl<C: CurveAffine> EccChipAlgorithms<C> for EccContext<C> {
+impl<C: CurveAffine> EccChipAlgorithms<C> for NativeScalarEccContext<C> {
     // like pippenger
     fn msm_batch_on_group(
         &mut self,
@@ -147,7 +147,7 @@ impl<C: CurveAffine> EccChipAlgorithms<C> for EccContext<C> {
         }
 
         let pick_candidate =
-            |ops: &mut EccContext<_>,
+            |ops: &mut NativeScalarEccContext<_>,
              gi: usize,
              group_bits: &Vec<AssignedCondition<C::ScalarExt>>| {
                 let mut curr_candidates: Vec<_> = candidates[gi].clone();
@@ -238,7 +238,7 @@ impl<C: CurveAffine> EccChipAlgorithms<C> for EccContext<C> {
             .collect::<Vec<_>>();
 
         let pick_candidate =
-            |ops: &mut EccContext<_>,
+            |ops: &mut NativeScalarEccContext<_>,
              pi: usize,
              bits_in_le: &[AssignedCondition<C::ScalarExt>; WINDOW_SIZE]| {
                 let mut curr_candidates: Vec<_> = point_candidates[pi].clone();
@@ -292,7 +292,7 @@ impl<C: CurveAffine> EccChipAlgorithms<C> for EccContext<C> {
     }
 }
 
-impl<C: CurveAffine> EccChipOps<C> for EccContext<C> {
+impl<C: CurveAffine> EccChipOps<C> for NativeScalarEccContext<C> {
     type AssignedScalar = AssignedValue<C::ScalarExt>;
 
     fn assign_constant_point(&mut self, c: &C::CurveExt) -> AssignedPoint<C, C::ScalarExt> {

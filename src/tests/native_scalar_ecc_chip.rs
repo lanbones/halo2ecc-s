@@ -4,7 +4,7 @@ use crate::circuit::native_scalar_ecc_chip::EccChipOps;
 use crate::circuit::range_chip::RangeChip;
 use crate::circuit::range_chip::RangeChipConfig;
 use crate::context::Records;
-use crate::context::{Context, EccContext};
+use crate::context::{Context, NativeScalarEccContext};
 use crate::range_info::RangeInfo;
 use crate::tests::random_fr;
 use ark_std::{end_timer, start_timer};
@@ -79,7 +79,7 @@ impl<W: FieldExt, N: FieldExt> Circuit<N> for TestCircuit<W, N> {
 
 #[test]
 fn test_native_ecc_chip() {
-    let mut ctx = EccContext::<G1Affine>(Context::new_with_range_info());
+    let mut ctx = NativeScalarEccContext::<G1Affine>(Context::new_with_range_info());
 
     let mut points = vec![];
     let mut scalars = vec![];
@@ -129,7 +129,7 @@ fn test_native_ecc_chip() {
 
 #[test]
 fn bench_native_ecc_chip() {
-    let mut ctx = EccContext::<G1Affine>(Context::new_with_range_info());
+    let mut ctx = NativeScalarEccContext::<G1Affine>(Context::new_with_range_info());
 
     let mut points = vec![];
     let mut scalars = vec![];
