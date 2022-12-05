@@ -34,7 +34,10 @@ impl<W: BaseExt, N: FieldExt> Display for Context<W, N> {
     }
 }
 
-pub type EccContext<C> = Context<<C as CurveAffine>::Base, <C as CurveAffine>::ScalarExt>;
+#[repr(transparent)]
+pub struct EccContext<C: CurveAffine>(
+    pub Context<<C as CurveAffine>::Base, <C as CurveAffine>::ScalarExt>,
+);
 
 impl<W: BaseExt, N: FieldExt> Context<W, N> {
     pub fn new() -> Self {

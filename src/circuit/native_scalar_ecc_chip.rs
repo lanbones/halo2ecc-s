@@ -121,7 +121,7 @@ pub trait EccChipAlgorithms<C: CurveAffine> {
 }
 
 impl<C: CurveAffine> EccChipAlgorithms<C> for EccContext<C> {
-    // like pipengier
+    // like pippenger
     fn msm_batch_on_group(
         &mut self,
         points: &Vec<AssignedPoint<C, C::ScalarExt>>,
@@ -147,7 +147,7 @@ impl<C: CurveAffine> EccChipAlgorithms<C> for EccContext<C> {
         }
 
         let pick_candidate =
-            |ops: &mut Context<_, _>,
+            |ops: &mut EccContext<_>,
              gi: usize,
              group_bits: &Vec<AssignedCondition<C::ScalarExt>>| {
                 let mut curr_candidates: Vec<_> = candidates[gi].clone();
@@ -238,7 +238,7 @@ impl<C: CurveAffine> EccChipAlgorithms<C> for EccContext<C> {
             .collect::<Vec<_>>();
 
         let pick_candidate =
-            |ops: &mut Context<_, _>,
+            |ops: &mut EccContext<_>,
              pi: usize,
              bits_in_le: &[AssignedCondition<C::ScalarExt>; WINDOW_SIZE]| {
                 let mut curr_candidates: Vec<_> = point_candidates[pi].clone();
@@ -305,9 +305,9 @@ impl<C: CurveAffine> EccChipOps<C> for EccContext<C> {
             C::ScalarExt::zero()
         };
 
-        let x = self.assign_int_constant(x);
-        let y = self.assign_int_constant(y);
-        let z = self.assign_constant(z);
+        let x = self.0.assign_int_constant(x);
+        let y = self.0.assign_int_constant(y);
+        let z = self.0.assign_constant(z);
 
         AssignedPoint::new(x, y, AssignedCondition(z))
     }
@@ -322,28 +322,28 @@ impl<C: CurveAffine> EccChipOps<C> for EccContext<C> {
             C::ScalarExt::zero()
         };
 
-        let x = self.assign_w(&field_to_bn(&x));
-        let y = self.assign_w(&field_to_bn(&y));
-        let z = self.assign_bit(z);
+        let x = self.0.assign_w(&field_to_bn(&x));
+        let y = self.0.assign_w(&field_to_bn(&y));
+        let z = self.0.assign_bit(z);
 
         // Constrain y^2 = x^3 + b
         // TODO: Optimize b
-        let b = self.assign_int_constant(C::b());
-        let y2 = self.int_square(&y);
-        let x2 = self.int_square(&x);
-        let x3 = self.int_mul(&x2, &x);
-        let right = self.int_add(&x3, &b);
+        let b = self.0.assign_int_constant(C::b());
+        let y2 = self.0.int_square(&y);
+        let x2 = self.0.int_square(&x);
+        let x3 = self.0.int_mul(&x2, &x);
+        let right = self.0.int_add(&x3, &b);
 
-        let eq = self.is_int_equal(&y2, &right);
-        let eq_or_identity = self.or(&eq, &z);
-        self.assert_true(&eq_or_identity);
+        let eq = self.0.is_int_equal(&y2, &right);
+        let eq_or_identity = self.0.or(&eq, &z);
+        self.0.assert_true(&eq_or_identity);
 
         AssignedPoint::new(x, y, z)
     }
 
     fn assign_identity(&mut self) -> AssignedPointWithCurvature<C, C::ScalarExt> {
-        let zero = self.assign_int_constant(C::Base::zero());
-        let one = self.assign_constant(C::ScalarExt::one());
+        let zero = self.0.assign_int_constant(C::Base::zero());
+        let one = self.0.assign_constant(C::ScalarExt::one());
 
         AssignedPointWithCurvature::new(
             zero.clone(),
@@ -367,9 +367,9 @@ impl<C: CurveAffine> EccChipOps<C> for EccContext<C> {
         a: &AssignedPoint<C, C::ScalarExt>,
         b: &AssignedPoint<C, C::ScalarExt>,
     ) -> AssignedPoint<C, C::ScalarExt> {
-        let x = self.bisec_int(cond, &a.x, &b.x);
-        let y = self.bisec_int(cond, &a.y, &b.y);
-        let z = self.bisec_cond(cond, &a.z, &b.z);
+        let x = self.0.bisec_int(cond, &a.x, &b.x);
+        let y = self.0.bisec_int(cond, &a.y, &b.y);
+        let z = self.0.bisec_cond(cond, &a.z, &b.z);
 
         AssignedPoint::new(x, y, z)
     }
@@ -380,8 +380,8 @@ impl<C: CurveAffine> EccChipOps<C> for EccContext<C> {
         a: &AssignedCurvature<C, C::ScalarExt>,
         b: &AssignedCurvature<C, C::ScalarExt>,
     ) -> AssignedCurvature<C, C::ScalarExt> {
-        let v = self.bisec_int(cond, &a.0, &b.0);
-        let z = self.bisec_cond(cond, &a.1, &b.1);
+        let v = self.0.bisec_int(cond, &a.0, &b.0);
+        let z = self.0.bisec_cond(cond, &a.1, &b.1);
 
         AssignedCurvature(v, z)
     }
@@ -392,9 +392,9 @@ impl<C: CurveAffine> EccChipOps<C> for EccContext<C> {
         a: &AssignedPointWithCurvature<C, C::ScalarExt>,
         b: &AssignedPointWithCurvature<C, C::ScalarExt>,
     ) -> AssignedPointWithCurvature<C, C::ScalarExt> {
-        let x = self.bisec_int(cond, &a.x, &b.x);
-        let y = self.bisec_int(cond, &a.y, &b.y);
-        let z = self.bisec_cond(cond, &a.z, &b.z);
+        let x = self.0.bisec_int(cond, &a.x, &b.x);
+        let y = self.0.bisec_int(cond, &a.y, &b.y);
+        let z = self.0.bisec_cond(cond, &a.z, &b.z);
 
         let c = self.bisec_curvature(cond, &a.curvature, &b.curvature);
 
@@ -411,16 +411,16 @@ impl<C: CurveAffine> EccChipOps<C> for EccContext<C> {
 
         // cx = lambda ^ 2 - a.x - b.x
         let cx = {
-            let l_square = self.int_square(l);
-            let t = self.int_sub(&l_square, &a.x);
-            let t = self.int_sub(&t, &b.x);
+            let l_square = self.0.int_square(l);
+            let t = self.0.int_sub(&l_square, &a.x);
+            let t = self.0.int_sub(&t, &b.x);
             t
         };
 
         let cy = {
-            let t = self.int_sub(&a.x, &cx);
-            let t = self.int_mul(&t, l);
-            let t = self.int_sub(&t, &a.y);
+            let t = self.0.int_sub(&a.x, &cx);
+            let t = self.0.int_mul(&t, l);
+            let t = self.0.int_sub(&t, &a.y);
             t
         };
 
@@ -432,12 +432,12 @@ impl<C: CurveAffine> EccChipOps<C> for EccContext<C> {
         a: &AssignedPointWithCurvature<C, C::ScalarExt>,
         b: &AssignedPoint<C, C::ScalarExt>,
     ) -> AssignedPoint<C, C::ScalarExt> {
-        let diff_x = self.int_sub(&a.x, &b.x);
-        let diff_y = self.int_sub(&a.y, &b.y);
-        let (x_eq, tangent) = self.int_div(&diff_y, &diff_x);
+        let diff_x = self.0.int_sub(&a.x, &b.x);
+        let diff_y = self.0.int_sub(&a.y, &b.y);
+        let (x_eq, tangent) = self.0.int_div(&diff_y, &diff_x);
 
-        let y_eq = self.is_int_zero(&diff_y);
-        let eq = self.and(&x_eq, &y_eq);
+        let y_eq = self.0.is_int_zero(&diff_y);
+        let eq = self.0.and(&x_eq, &y_eq);
 
         let tangent = AssignedCurvature(tangent, x_eq);
         let mut lambda = self.bisec_curvature(&eq, &a.curvature, &tangent);
@@ -455,7 +455,7 @@ impl<C: CurveAffine> EccChipOps<C> for EccContext<C> {
     ) -> AssignedPoint<C, C::ScalarExt> {
         let a_p = a.to_point();
         let mut p = self.lambda_to_point(&a.curvature, &a_p, &a_p);
-        p.z = self.bisec_cond(&a.z, &a.z, &p.z);
+        p.z = self.0.bisec_cond(&a.z, &a.z, &p.z);
 
         p
     }
@@ -465,29 +465,29 @@ impl<C: CurveAffine> EccChipOps<C> for EccContext<C> {
         a: &AssignedPoint<C, C::ScalarExt>,
         b: &AssignedPoint<C, C::ScalarExt>,
     ) {
-        let eq_x = self.is_int_equal(&a.x, &b.x);
-        let eq_y = self.is_int_equal(&a.y, &b.y);
-        let eq_z = self.xnor(&a.z, &b.z);
-        let eq_xy = self.and(&eq_x, &eq_y);
-        let eq_xyz = self.and(&eq_xy, &eq_z);
+        let eq_x = self.0.is_int_equal(&a.x, &b.x);
+        let eq_y = self.0.is_int_equal(&a.y, &b.y);
+        let eq_z = self.0.xnor(&a.z, &b.z);
+        let eq_xy = self.0.and(&eq_x, &eq_y);
+        let eq_xyz = self.0.and(&eq_xy, &eq_z);
 
-        let is_both_identity = self.and(&a.z, &b.z);
-        let eq = self.or(&eq_xyz, &is_both_identity);
+        let is_both_identity = self.0.and(&a.z, &b.z);
+        let eq = self.0.or(&eq_xyz, &is_both_identity);
 
-        self.assert_true(&eq)
+        self.0.assert_true(&eq)
     }
 
     fn ecc_neg(&mut self, a: &AssignedPoint<C, C::ScalarExt>) -> AssignedPoint<C, C::ScalarExt> {
         let x = a.x.clone();
-        let y = self.int_neg(&a.y);
+        let y = self.0.int_neg(&a.y);
         let z = a.z.clone();
 
         AssignedPoint::new(x, y, z)
     }
 
     fn ecc_reduce(&mut self, a: &AssignedPoint<C, C::ScalarExt>) -> AssignedPoint<C, C::ScalarExt> {
-        let x = self.reduce(&a.x);
-        let y = self.reduce(&a.y);
+        let x = self.0.reduce(&a.x);
+        let y = self.0.reduce(&a.y);
         let z = a.z;
 
         let identity = self.assign_identity();
@@ -518,11 +518,11 @@ impl<C: CurveAffine> EccChipOps<C> for EccContext<C> {
             } else {
                 C::ScalarExt::zero()
             };
-            let b0 = self.assign_bit(b0);
-            let b1 = self.assign_bit(b1);
+            let b0 = self.0.assign_bit(b0);
+            let b1 = self.0.assign_bit(b1);
             let v_next: C::ScalarExt = bn_to_field(&(&s_bn >> (i * 2 + 2)));
 
-            let cells = self.one_line_with_last(
+            let cells = self.0.one_line_with_last(
                 vec![
                     pair!(v_next.clone(), four),
                     pair!(&b1.0, two),
@@ -540,15 +540,15 @@ impl<C: CurveAffine> EccChipOps<C> for EccContext<C> {
         }
 
         if <C::ScalarExt as PrimeField>::NUM_BITS.is_odd() {
-            self.assert_bit(&v);
+            self.0.assert_bit(&v);
             bits.push(AssignedCondition(v));
         } else {
-            self.assert_constant(&v, C::ScalarExt::zero())
+            self.0.assert_constant(&v, C::ScalarExt::zero())
         }
 
         let rem = <C::ScalarExt as PrimeField>::NUM_BITS as usize % WINDOW_SIZE;
         if rem > 0 {
-            let zero = self.assign_constant(C::ScalarExt::zero());
+            let zero = self.0.assign_constant(C::ScalarExt::zero());
             for _ in 0..WINDOW_SIZE - rem {
                 bits.push(AssignedCondition(zero));
             }
@@ -580,11 +580,11 @@ impl<C: CurveAffine> EccChipOps<C> for EccContext<C> {
         a: &AssignedPoint<C, C::ScalarExt>,
     ) -> AssignedPointWithCurvature<C, C::ScalarExt> {
         // 3 * x ^ 2 / 2 * y
-        let x_square = self.int_square(&a.x);
-        let numerator = self.int_mul_small_constant(&x_square, 3usize);
-        let denominator = self.int_mul_small_constant(&a.y, 2usize);
+        let x_square = self.0.int_square(&a.x);
+        let numerator = self.0.int_mul_small_constant(&x_square, 3usize);
+        let denominator = self.0.int_mul_small_constant(&a.y, 2usize);
 
-        let (z, v) = self.int_div(&numerator, &denominator);
+        let (z, v) = self.0.int_div(&numerator, &denominator);
         AssignedPointWithCurvature::new(a.x, a.y, a.z, AssignedCurvature(v, z))
     }
 
@@ -594,21 +594,21 @@ impl<C: CurveAffine> EccChipOps<C> for EccContext<C> {
     ) -> Vec<AssignedValue<C::ScalarExt>> {
         let p = self.ecc_reduce(&p);
         let shift = bn_to_field(&(BigUint::from(1u64) << LIMB_BITS));
-        let s0 = self.sum_with_constant(
+        let s0 = self.0.sum_with_constant(
             vec![
                 (&p.x.limbs_le[0], C::ScalarExt::one()),
                 (&p.x.limbs_le[1], shift),
             ],
             None,
         );
-        let s1 = self.sum_with_constant(
+        let s1 = self.0.sum_with_constant(
             vec![
                 (&p.x.limbs_le[2], C::ScalarExt::one()),
                 (&p.y.limbs_le[0], shift),
             ],
             None,
         );
-        let s2 = self.sum_with_constant(
+        let s2 = self.0.sum_with_constant(
             vec![
                 (&p.y.limbs_le[1], C::ScalarExt::one()),
                 (&p.y.limbs_le[2], shift),

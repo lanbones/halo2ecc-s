@@ -1,10 +1,10 @@
 use crate::assign::AssignedPoint;
 use crate::circuit::base_chip::{BaseChip, BaseChipConfig, BaseChipOps};
-use crate::circuit::native_ecc_chip::EccChipOps;
+use crate::circuit::native_scalar_ecc_chip::EccChipOps;
 use crate::circuit::range_chip::RangeChip;
 use crate::circuit::range_chip::RangeChipConfig;
-use crate::context::EccContext;
 use crate::context::Records;
+use crate::context::{Context, EccContext};
 use crate::range_info::RangeInfo;
 use crate::tests::random_fr;
 use ark_std::{end_timer, start_timer};
@@ -79,7 +79,7 @@ impl<W: FieldExt, N: FieldExt> Circuit<N> for TestCircuit<W, N> {
 
 #[test]
 fn test_native_ecc_chip() {
-    let mut ctx = EccContext::<G1Affine>::new_with_range_info();
+    let mut ctx = EccContext::<G1Affine>(Context::new_with_range_info());
 
     let mut points = vec![];
     let mut scalars = vec![];
@@ -102,7 +102,7 @@ fn test_native_ecc_chip() {
         .collect::<Vec<_>>();
     let scalars = scalars
         .into_iter()
-        .map(|x| ctx.assign(x))
+        .map(|x| ctx.0.assign(x))
         .collect::<Vec<_>>();
     let res: AssignedPoint<_, _> = ctx.msm(&points, &scalars);
     let res_expect: AssignedPoint<G1Affine, Fr> = ctx.assign_point(&acc);
@@ -110,11 +110,14 @@ fn test_native_ecc_chip() {
 
     end_timer!(timer);
 
-    println!("offset {} {}", ctx.range_offset, ctx.base_offset);
+    println!("offset {} {}", ctx.0.range_offset, ctx.0.base_offset);
 
     const K: u32 = 22;
     let circuit = TestCircuit::<Fq, Fr> {
-        records: Arc::try_unwrap(ctx.records).unwrap().into_inner().unwrap(),
+        records: Arc::try_unwrap(ctx.0.records)
+            .unwrap()
+            .into_inner()
+            .unwrap(),
         _phantom: PhantomData,
     };
     let prover = match MockProver::run(K, &circuit, vec![]) {
@@ -126,7 +129,7 @@ fn test_native_ecc_chip() {
 
 #[test]
 fn bench_native_ecc_chip() {
-    let mut ctx = EccContext::<G1Affine>::new_with_range_info();
+    let mut ctx = EccContext::<G1Affine>(Context::new_with_range_info());
 
     let mut points = vec![];
     let mut scalars = vec![];
@@ -149,7 +152,7 @@ fn bench_native_ecc_chip() {
         .collect::<Vec<_>>();
     let scalars = scalars
         .into_iter()
-        .map(|x| ctx.assign(x))
+        .map(|x| ctx.0.assign(x))
         .collect::<Vec<_>>();
     let res: AssignedPoint<_, _> = ctx.msm(&points, &scalars);
     let res_expect: AssignedPoint<G1Affine, Fr> = ctx.assign_point(&acc);
@@ -159,7 +162,10 @@ fn bench_native_ecc_chip() {
 
     const K: u32 = 22;
     let circuit = TestCircuit::<Fq, Fr> {
-        records: Arc::try_unwrap(ctx.records).unwrap().into_inner().unwrap(),
+        records: Arc::try_unwrap(ctx.0.records)
+            .unwrap()
+            .into_inner()
+            .unwrap(),
         _phantom: PhantomData,
     };
 
