@@ -34,6 +34,10 @@ pub trait IntegerChipOps<W: BaseExt, N: FieldExt> {
         a: &AssignedInteger<W, N>,
         b: &AssignedInteger<W, N>,
     ) -> AssignedInteger<W, N>;
+    fn int_unsafe_invert(
+        &mut self,
+        x: &AssignedInteger<W, N>,
+    ) -> AssignedInteger<W, N>;
     fn int_div(
         &mut self,
         a: &AssignedInteger<W, N>,
@@ -379,7 +383,16 @@ impl<W: BaseExt, N: FieldExt> IntegerChipOps<W, N> for Context<W, N> {
 
         rem
     }
-
+    fn int_unsafe_invert(
+        &mut self,
+        x: &AssignedInteger<W, N>,
+    ) -> AssignedInteger<W, N> {
+        //TODO: optimize
+        let one = self.assign_int_constant(W::one());
+        let (c, v) = self.int_div(&one, x);
+        self.assert_false(&c);
+        v
+    }
     fn int_div(
         &mut self,
         a: &AssignedInteger<W, N>,

@@ -83,7 +83,14 @@ impl<W: BaseExt, N: FieldExt> Context<W, N> {
         (c0, c1)
     }
     pub fn fq2_unsafe_invert(&mut self, x: &AssignedFq2<W, N>) -> AssignedFq2<W, N> {
-        todo!();
+        let t0 = self.int_square(&x.0);
+        let t1 = self.int_square(&x.1);
+        let t0 = self.int_add(&t0, &t1);
+        let t = self.int_unsafe_invert(&t0);
+        let c0 = self.int_mul(&x.0, &t);
+        let c1 = self.int_mul(&x.1, &t);
+        let c1 = self.int_neg(&c1);
+        (c0, c1)
     }
 }
 
@@ -222,7 +229,35 @@ impl<W: BaseExt, N: FieldExt> Context<W, N> {
         (c0, c1, c2)
     }
     pub fn fq6_unsafe_invert(&mut self, x: &AssignedFq6<W, N>) -> AssignedFq6<W, N> {
-        todo!()
+        let c0 = self.fq2_mul_by_nonresidue(&x.2);
+        let c0 = self.fq2_mul(&c0, &x.1);
+        let c0 = self.fq2_neg(&c0);
+        let x0s = self.fq2_square(&x.0);
+        let c0 = self.fq2_add(&c0, &x0s);
+
+        let c1 = self.fq2_square(&x.2);
+        let c1 = self.fq2_mul_by_nonresidue(&c1);
+        let x01 = self.fq2_mul(&x.0, &x.1);
+        let c1 = self.fq2_sub(&c1, &x01);
+
+        let c2 = self.fq2_square(&x.1);
+        let x02 = self.fq2_mul(&x.0, &x.2);
+        let c2 = self.fq2_sub(&c2, &x02);
+
+        let c0x0 = self.fq2_mul(&c0, &x.0);
+        let c1x2 = self.fq2_mul(&c1, &x.2);
+        let c2x1 = self.fq2_mul(&c2, &x.1);
+        let t = self.fq2_add(&c1x2, &c2x1);
+        let t = self.fq2_mul_by_nonresidue(&t);
+        let t = self.fq2_add(&t, &c0x0);
+
+        let t = self.fq2_unsafe_invert(&t);
+
+        (
+            self.fq2_mul(&t, &c0),
+            self.fq2_mul(&t, &c1),
+            self.fq2_mul(&t, &c2),
+        )
     }
 }
 
@@ -365,7 +400,16 @@ impl<W: BaseExt, N: FieldExt> Context<W, N> {
         ((c00, c01, c02), (c10, c11, c12))
     }
     pub fn fq12_unsafe_invert(&mut self, x: &AssignedFq12<W, N>) -> AssignedFq12<W, N> {
-        todo!()
+        let x0s = self.fq6_square(&x.0);
+        let x1s = self.fq6_square(&x.1);
+        let t = self.fq6_mul_by_nonresidue(&x1s);
+        let t = self.fq6_sub(&x0s, &t);
+        let t = self.fq6_unsafe_invert(&t);
+
+        let c0 = self.fq6_mul(&t, &x.0);
+        let c1 = self.fq6_mul(&t, &x.1);
+        let c1 = self.fq6_neg(&c1);
+        (c0, c1)
     }
     pub fn fq12_frobenius_map(
         &mut self,
