@@ -3,15 +3,26 @@ use std::marker::PhantomData;
 use crate::assign::{AssignedFq6, AssignedG2, AssignedG2Affine, AssignedG2Prepared};
 use crate::circuit::integer_chip::IntegerChipOps;
 use crate::context::Context;
+use crate::utils::bn_to_field;
 use crate::{
     assign::{AssignedFq12, AssignedFq2, AssignedG1Affine},
     context::NativeScalarEccContext,
 };
 use halo2_proofs::arithmetic::{BaseExt, CurveAffine, FieldExt};
+use num_bigint::BigUint;
 
 use super::base_chip::BaseChipOps;
 
 impl<W: BaseExt, N: FieldExt> Context<W, N> {
+    fn fq2_assign_one(&mut self) -> AssignedFq2<W, N> {
+        (
+            self.assign_int_constant(W::one()),
+            self.assign_int_constant(W::zero()),
+        )
+    }
+    fn fq2_assign_constant(&mut self, c0: W, c1: W) -> AssignedFq2<W, N> {
+        (self.assign_int_constant(c0), self.assign_int_constant(c1))
+    }
     fn fq2_add(&mut self, a: &AssignedFq2<W, N>, b: &AssignedFq2<W, N>) -> AssignedFq2<W, N> {
         (self.int_add(&a.0, &b.0), self.int_add(&a.1, &b.1))
     }
@@ -380,11 +391,11 @@ impl<C: CurveAffine> NativeScalarEccContext<C> {
 
         let c0 = self.0.fq2_double(&rz);
         let c1 = {
-            let t = self.0.fq2_add(&_2yqzt3, &_2yt); // 2(yqzt3 + yt) 
+            let t = self.0.fq2_add(&_2yqzt3, &_2yt); // 2(yqzt3 + yt)
             self.0.fq2_double(&t)
         };
         let c2 = {
-            let t0 = self.0.fq2_mul(&_2yqzt3, &pq.x); // 2yqzt3xq 
+            let t0 = self.0.fq2_mul(&_2yqzt3, &pq.x); // 2yqzt3xq
             let t0 = self.0.fq2_sub(&t0, &_2yt); // 2(yqzt3xq - yt)
             let t0 = self.0.fq2_double(&t0); // 4(yqzt3xq - yt)
             let t0 = self.0.fq2_mul(&t0, &pq.x); // 4xq(yqzt3xq - yt)
@@ -396,11 +407,89 @@ impl<C: CurveAffine> NativeScalarEccContext<C> {
         (AssignedG2::new(rx, ry, rz), [c0, c1, c2])
     }
 
+    fn g2affine_to_g2(&mut self, g2: &AssignedG2Affine<C, C::Scalar>) -> AssignedG2<C, C::Scalar> {
+        // not support identity
+        self.0.assert_false(&g2.z);
+        let z = self.0.fq2_assign_one();
+
+        AssignedG2::new(g2.x, g2.y, z)
+    }
+
+    fn g2_neg(&mut self, g2: &AssignedG2Affine<C, C::Scalar>) -> AssignedG2Affine<C, C::Scalar> {
+        let y = self.0.fq2_neg(&g2.y);
+        AssignedG2Affine::new(g2.x, y, g2.z)
+    }
+
     fn prepare_g2(
         &mut self,
-        g2: &mut AssignedG2Affine<C, C::Scalar>,
+        g2: &AssignedG2Affine<C, C::Scalar>,
     ) -> AssignedG2Prepared<C, C::ScalarExt> {
-        todo!()
+        // currently only supports bn256
+        // 6U+2 for in NAF form
+        pub const SIX_U_PLUS_2_NAF: [i8; 65] = [
+            0, 0, 0, 1, 0, 1, 0, -1, 0, 0, 1, -1, 0, 0, 1, 0, 0, 1, 1, 0, -1, 0, 0, 1, 0, -1, 0, 0,
+            0, 0, 1, 1, 1, 0, 0, -1, 0, 0, 1, 0, 0, 0, 0, 0, -1, 0, 0, 1, 1, 0, 0, -1, 0, 0, 0, 1,
+            1, 0, -1, 0, 0, 1, 0, 1, 1,
+        ];
+
+        let neg_g2 = self.g2_neg(&g2);
+
+        let mut coeffs = vec![];
+        let mut r = self.g2affine_to_g2(g2);
+
+        for i in (1..SIX_U_PLUS_2_NAF.len()).rev() {
+            let (new_r, coeff) = self.doubling_step(&r);
+            r = new_r;
+            coeffs.push(coeff);
+            let x = SIX_U_PLUS_2_NAF[i - 1];
+            match x {
+                1 => {
+                    let (new_r, coeff) = self.addition_step(&r, &g2);
+                    r = new_r;
+                    coeffs.push(coeff);
+                }
+                -1 => {
+                    let (new_r, coeff) = self.addition_step(&r, &neg_g2);
+                    r = new_r;
+                    coeffs.push(coeff);
+                }
+                _ => continue,
+            }
+        }
+
+        let mut q1 = g2.clone();
+
+        // TODO: fill constant value
+        let FROBENIUS_COEFF_FQ6_C1_1 = self.0.fq2_assign_constant(
+            bn_to_field(&BigUint::from_bytes_le(&[])),
+            bn_to_field(&BigUint::from_bytes_le(&[])),
+        );let FROBENIUS_COEFF_FQ6_C1_2 = self.0.fq2_assign_constant(
+            bn_to_field(&BigUint::from_bytes_le(&[])),
+            bn_to_field(&BigUint::from_bytes_le(&[])),
+        );
+        let XI_TO_Q_MINUS_1_OVER_2 = self.0.fq2_assign_constant(
+            bn_to_field(&BigUint::from_bytes_le(&[])),
+            bn_to_field(&BigUint::from_bytes_le(&[])),
+        );
+
+        q1.x.1 = self.0.int_neg(&q1.x.1);
+        q1.x = self.0.fq2_mul(&q1.x, &FROBENIUS_COEFF_FQ6_C1_1);
+
+        q1.y.1 = self.0.int_neg(&q1.y.1);
+        q1.y = self.0.fq2_mul(&q1.y, &XI_TO_Q_MINUS_1_OVER_2);
+
+        let (new_r, coeff) = self.addition_step(&r, &q1);
+        r = new_r;
+        coeffs.push(coeff);
+
+        let mut minusq2 = g2.clone();
+        minusq2.x = self.0.fq2_mul(&minusq2.x, &FROBENIUS_COEFF_FQ6_C1_2);
+
+        let (new_r, coeff) = self.addition_step(&r, &minusq2);
+        r = new_r;
+        coeffs.push(coeff);
+
+        AssignedG2Prepared::new(coeffs)
     }
 
     fn ell(
