@@ -24,6 +24,18 @@ pub const SIX_U_PLUS_2_NAF: [i8; 65] = [
     0, 1, 0, 1, 1,
 ];
 
+// TODO: fill value
+pub const FROBENIUS_COEFF_FQ2_C1: [&[u8]; 2] = [
+    // Fq(-1)**(((q^0) - 1) / 2)
+    // it's 1 in Montgommery form
+    &[],
+    // Fq(-1)**(((q^1) - 1) / 2)
+    &[],
+];
+pub const FROBENIUS_COEFF_FQ6_C1: [[&[u8]; 2]; 6] = [[&[], &[]]; 6];
+pub const FROBENIUS_COEFF_FQ6_C2: [[&[u8]; 2]; 6] = [[&[], &[]]; 6];
+pub const FROBENIUS_COEFF_FQ12_C1: [[&[u8]; 2]; 12] = [[&[], &[]]; 12];
+
 impl<W: BaseExt, N: FieldExt> Context<W, N> {
     fn fq2_assign_zero(&mut self) -> AssignedFq2<W, N> {
         let fq2_zero = self.assign_int_constant(W::zero());
@@ -91,6 +103,12 @@ impl<W: BaseExt, N: FieldExt> Context<W, N> {
         let c1 = self.int_mul(&x.1, &t);
         let c1 = self.int_neg(&c1);
         (c0, c1)
+    }
+    pub fn fq2_frobenius_map(&mut self, x: &AssignedFq2<W, N>, power: usize) -> AssignedFq2<W, N> {
+        let v = self.assign_int_constant(bn_to_field(&BigUint::from_bytes_le(
+            FROBENIUS_COEFF_FQ2_C1[power % 2],
+        )));
+        (x.0, self.int_mul(&x.1, &v))
     }
 }
 
@@ -259,6 +277,22 @@ impl<W: BaseExt, N: FieldExt> Context<W, N> {
             self.fq2_mul(&t, &c2),
         )
     }
+    pub fn fq6_frobenius_map(&mut self, x: &AssignedFq6<W, N>, power: usize) -> AssignedFq6<W, N> {
+        let c0 = self.fq2_frobenius_map(&x.0, power);
+        let c1 = self.fq2_frobenius_map(&x.1, power);
+        let c2 = self.fq2_frobenius_map(&x.2, power);
+
+        let coeff_c1 =
+            FROBENIUS_COEFF_FQ6_C1[power % 6].map(|x| bn_to_field(&BigUint::from_bytes_le(x)));
+        let coeff_c1 = self.fq2_assign_constant(coeff_c1[0], coeff_c1[1]);
+        let c1 = self.fq2_mul(&c1, &coeff_c1);
+        let coeff_c2 =
+            FROBENIUS_COEFF_FQ6_C2[power % 6].map(|x| bn_to_field(&BigUint::from_bytes_le(x)));
+        let coeff_c2 = self.fq2_assign_constant(coeff_c2[0], coeff_c2[1]);
+        let c2 = self.fq2_mul(&c2, &coeff_c2);
+
+        (c0, c1, c2)
+    }
 }
 
 impl<W: BaseExt, N: FieldExt> Context<W, N> {
@@ -416,7 +450,17 @@ impl<W: BaseExt, N: FieldExt> Context<W, N> {
         x: &AssignedFq12<W, N>,
         power: usize,
     ) -> AssignedFq12<W, N> {
-        todo!()
+        let c0 = self.fq6_frobenius_map(&x.0, power);
+        let c1 = self.fq6_frobenius_map(&x.1, power);
+
+        let coeff =
+            FROBENIUS_COEFF_FQ12_C1[power % 12].map(|x| bn_to_field(&BigUint::from_bytes_le(x)));
+        let coeff = self.fq2_assign_constant(coeff[0], coeff[1]);
+        let c1c0 = self.fq2_mul(&c1.0, &coeff);
+        let c1c1 = self.fq2_mul(&c1.1, &coeff);
+        let c1c2 = self.fq2_mul(&c1.2, &coeff);
+
+        (c0, (c1c0, c1c1, c1c2))
     }
 }
 
