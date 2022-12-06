@@ -1,3 +1,6 @@
+/*
+  The implementation is ported from https://github.com/privacy-scaling-explorations/pairing
+*/
 use crate::assign::{AssignedFq6, AssignedG2, AssignedG2Affine, AssignedG2Prepared};
 use crate::circuit::integer_chip::IntegerChipOps;
 use crate::context::Context;
