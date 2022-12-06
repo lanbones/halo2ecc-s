@@ -82,6 +82,9 @@ impl<W: BaseExt, N: FieldExt> Context<W, N> {
 
         (c0, c1)
     }
+    pub fn fq2_unsafe_invert(&mut self, x: &AssignedFq2<W, N>) -> AssignedFq2<W, N> {
+        todo!();
+    }
 }
 
 impl<W: BaseExt, N: FieldExt> Context<W, N> {
@@ -218,6 +221,9 @@ impl<W: BaseExt, N: FieldExt> Context<W, N> {
 
         (c0, c1, c2)
     }
+    pub fn fq6_unsafe_invert(&mut self, x: &AssignedFq6<W, N>) -> AssignedFq6<W, N> {
+        todo!()
+    }
 }
 
 impl<W: BaseExt, N: FieldExt> Context<W, N> {
@@ -306,8 +312,57 @@ impl<W: BaseExt, N: FieldExt> Context<W, N> {
         let x1 = self.fq6_add(&t0, &t1);
         (x0, x1)
     }
+    fn fp4_square(
+        &mut self,
+        c0: &mut AssignedFq2<W, N>,
+        c1: &mut AssignedFq2<W, N>,
+        a0: &AssignedFq2<W, N>,
+        a1: &AssignedFq2<W, N>,
+    ) {
+        let t0 = self.fq2_square(&a0);
+        let t1 = self.fq2_square(&a1);
+        let mut t2 = self.fq2_mul_by_nonresidue(&t1);
+        *c0 = self.fq2_add(&t2, &t0);
+        t2 = self.fq2_add(a0, a1);
+        t2 = self.fq2_square(&t2);
+        t2 = self.fq2_sub(&t2, &t0);
+        *c1 = self.fq2_sub(&t2, &t1);
+    }
     pub fn fq12_cyclotomic_square(&mut self, x: &AssignedFq12<W, N>) -> AssignedFq12<W, N> {
-        todo!()
+        let zero = self.fq2_assign_zero();
+        let mut t3 = zero;
+        let mut t4 = zero;
+        let mut t5 = zero;
+        let mut t6 = zero;
+
+        self.fp4_square(&mut t3, &mut t4, &x.0 .0, &x.1 .1);
+        let mut t2 = self.fq2_sub(&t3, &x.0 .0);
+        t2 = self.fq2_double(&t2);
+        let c00 = self.fq2_add(&t2, &t3);
+
+        t2 = self.fq2_add(&t4, &x.1 .1);
+        t2 = self.fq2_double(&t2);
+        let c11 = self.fq2_add(&t2, &t4);
+
+        self.fp4_square(&mut t3, &mut t4, &x.1 .0, &x.0 .2);
+        self.fp4_square(&mut t5, &mut t6, &x.0 .1, &x.1 .2);
+
+        t2 = self.fq2_sub(&t3, &x.0 .1);
+        t2 = self.fq2_double(&t2);
+        let c01 = self.fq2_add(&t2, &t3);
+        t2 = self.fq2_add(&t4, &x.1 .2);
+        t2 = self.fq2_double(&t2);
+        let c12 = self.fq2_add(&t2, &t4);
+        t3 = t6;
+        t3 = self.fq2_mul_by_nonresidue(&t3);
+        t2 = self.fq2_add(&t3, &x.1 .0);
+        t2 = self.fq2_double(&t2);
+        let c10 = self.fq2_add(&t2, &t3);
+        t2 = self.fq2_sub(&t5, &x.0 .2);
+        t2 = self.fq2_double(&t2);
+        let c02 = self.fq2_add(&t2, &t5);
+
+        ((c00, c01, c02), (c10, c11, c12))
     }
     pub fn fq12_unsafe_invert(&mut self, x: &AssignedFq12<W, N>) -> AssignedFq12<W, N> {
         todo!()
