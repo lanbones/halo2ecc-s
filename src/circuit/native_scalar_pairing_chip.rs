@@ -1,4 +1,6 @@
-use crate::assign::AssignedFq6;
+use std::marker::PhantomData;
+
+use crate::assign::{AssignedFq6, AssignedG2, AssignedG2Affine, AssignedG2Prepared};
 use crate::circuit::integer_chip::IntegerChipOps;
 use crate::context::Context;
 use crate::{
@@ -6,6 +8,8 @@ use crate::{
     context::NativeScalarEccContext,
 };
 use halo2_proofs::arithmetic::{BaseExt, CurveAffine, FieldExt};
+
+use super::base_chip::BaseChipOps;
 
 impl<W: BaseExt, N: FieldExt> Context<W, N> {
     fn fq2_add(&mut self, a: &AssignedFq2<W, N>, b: &AssignedFq2<W, N>) -> AssignedFq2<W, N> {
@@ -30,7 +34,7 @@ impl<W: BaseExt, N: FieldExt> Context<W, N> {
     fn fq2_double(&mut self, a: &AssignedFq2<W, N>) -> AssignedFq2<W, N> {
         (self.int_add(&a.0, &a.0), self.int_add(&a.1, &a.1))
     }
-    fn fq2_squre(&mut self, a: &AssignedFq2<W, N>) -> AssignedFq2<W, N> {
+    fn fq2_square(&mut self, a: &AssignedFq2<W, N>) -> AssignedFq2<W, N> {
         self.fq2_mul(a, a)
     }
     fn fq2_neg(&mut self, a: &AssignedFq2<W, N>) -> AssignedFq2<W, N> {
@@ -112,7 +116,7 @@ impl<W: BaseExt, N: FieldExt> Context<W, N> {
             self.fq2_double(&a.2),
         )
     }
-    fn fq6_squre(&mut self, a: &AssignedFq6<W, N>) -> AssignedFq6<W, N> {
+    fn fq6_square(&mut self, a: &AssignedFq6<W, N>) -> AssignedFq6<W, N> {
         self.fq6_mul(a, a)
     }
     fn fq6_neg(&mut self, a: &AssignedFq6<W, N>) -> AssignedFq6<W, N> {
@@ -206,7 +210,7 @@ impl<W: BaseExt, N: FieldExt> Context<W, N> {
     fn fq12_double(&mut self, a: &AssignedFq12<W, N>) -> AssignedFq12<W, N> {
         (self.fq6_double(&a.0), self.fq6_double(&a.1))
     }
-    fn fq12_squre(&mut self, a: &AssignedFq12<W, N>) -> AssignedFq12<W, N> {
+    fn fq12_square(&mut self, a: &AssignedFq12<W, N>) -> AssignedFq12<W, N> {
         self.fq12_mul(a, a)
     }
     fn fq12_neg(&mut self, a: &AssignedFq12<W, N>) -> AssignedFq12<W, N> {
@@ -261,6 +265,144 @@ impl<W: BaseExt, N: FieldExt> Context<W, N> {
 }
 
 impl<C: CurveAffine> NativeScalarEccContext<C> {
+    fn doubling_step(
+        &mut self,
+        pt: &AssignedG2<C, C::Scalar>,
+    ) -> (
+        AssignedG2<C, C::Scalar>,
+        [AssignedFq2<C::Base, C::Scalar>; 3],
+    ) {
+        //see https://eprint.iacr.org/2010/354.pdf
+        let x2 = self.0.fq2_square(&pt.x);
+
+        let y2 = self.0.fq2_square(&pt.y);
+        let _2y2 = self.0.fq2_double(&y2);
+        let _4y2 = self.0.fq2_double(&_2y2);
+        let _4y4 = self.0.fq2_square(&_2y2);
+        let _8y4 = self.0.fq2_double(&_4y4);
+
+        let z2 = self.0.fq2_square(&pt.z);
+
+        let _4xy2 = {
+            let t = self.0.fq2_mul(&y2, &pt.x);
+            let t = self.0.fq2_double(&t);
+            let t = self.0.fq2_double(&t);
+            t
+        };
+        let _3x2 = {
+            let t = self.0.fq2_double(&x2);
+            let t = self.0.fq2_add(&t, &x2);
+            t
+        };
+        let _6x2 = self.0.fq2_double(&_3x2);
+        let _9x4 = self.0.fq2_square(&_3x2);
+        let _3x2_x = self.0.fq2_add(&_3x2, &pt.x);
+
+        let rx = {
+            let t = self.0.fq2_sub(&_9x4, &_4xy2);
+            let t = self.0.fq2_sub(&t, &_4xy2);
+            t
+        };
+
+        let ry = {
+            let t = self.0.fq2_sub(&_4xy2, &pt.x);
+            let t = self.0.fq2_mul(&t, &_3x2_x);
+            let t = self.0.fq2_sub(&t, &_8y4);
+            t
+        };
+
+        let rz = {
+            let yz = self.0.fq2_mul(&pt.y, &pt.z);
+            self.0.fq2_double(&yz)
+        };
+
+        let c0 = {
+            let t = self.0.fq2_mul(&z2, &rz);
+            self.0.fq2_double(&t)
+        };
+
+        let c1 = {
+            let _6x2z2 = self.0.fq2_mul(&z2, &_6x2);
+            self.0.fq2_neg(&_6x2z2)
+        };
+
+        let c2 = {
+            let _6x3 = self.0.fq2_mul(&_6x2, &pt.x);
+            self.0.fq2_sub(&_6x3, &_4y2)
+        };
+
+        (AssignedG2::new(rx, ry, rz), [c0, c1, c2])
+    }
+
+    fn addition_step(
+        &mut self,
+        pt: &AssignedG2<C, C::Scalar>,
+        pq: &AssignedG2Affine<C, C::Scalar>,
+    ) -> (
+        AssignedG2<C, C::Scalar>,
+        [AssignedFq2<C::Base, C::Scalar>; 3],
+    ) {
+        //see https://eprint.iacr.org/2010/354.pdf
+        let zt2 = self.0.fq2_square(&pt.z);
+        let yqzt = self.0.fq2_mul(&pq.y, &pt.z);
+        let yqzt3 = self.0.fq2_mul(&yqzt, &zt2);
+        let _2yqzt3 = self.0.fq2_double(&yqzt3);
+        let _2yt = self.0.fq2_double(&pt.y);
+        let _2yqzt3_2yt = self.0.fq2_sub(&_2yqzt3, &_2yt);
+
+        let xqzt2 = self.0.fq2_mul(&pq.x, &zt2);
+        let xqzt2_xt = self.0.fq2_sub(&xqzt2, &pt.x);
+        let _2_xqzt2_xt = self.0.fq2_double(&xqzt2_xt); // 2(xqzt2 - xt)
+        let _4_xqzt2_xt_2 = self.0.fq2_square(&_2_xqzt2_xt); // 4(xqzt2 - xt) ^ 2
+
+        let rx = {
+            let t0 = self.0.fq2_mul(&_4_xqzt2_xt_2, &xqzt2_xt); // 4(xqzt2 - xt) ^ 3
+            let t1 = self.0.fq2_double(&_4_xqzt2_xt_2); // 8(xqzt2 - xt) ^ 2
+            let t2 = self.0.fq2_mul(&t1, &pt.x); // 8(xqzt2 - xt) ^ 2 * xt
+
+            let t = self.0.fq2_square(&_2yqzt3_2yt); // (2yqzt3 - 2yt) ^ 2
+            let t = self.0.fq2_sub(&t, &t0); // (2yqzt3 - 2yt) ^ 2 - 4(xqzt2 - xt) ^ 3
+            let t = self.0.fq2_sub(&t, &t2); // (2yqzt3 - 2yt) ^ 2 - 4(xqzt2 - xt) ^ 3 - 8(xqzt2 - xt) ^ 2 * xt
+            t
+        };
+
+        let ry = {
+            let t0 = self.0.fq2_mul(&_4_xqzt2_xt_2, &pt.x); // 4(xqzt2 - xt) ^ 2 * xt
+            let t0 = self.0.fq2_sub(&t0, &rx); // 4(xqzt2 - xt) ^ 2 * xt - xr
+            let t0 = self.0.fq2_mul(&_2yqzt3_2yt, &t0); // (2yqzt3 - 2yt) * (4(xqzt2 - xt) ^ 2 * xt - xr)
+            let t1 = self.0.fq2_mul(&_2_xqzt2_xt, &_4_xqzt2_xt_2); // 8(xqzt2 - xt) ^ 3
+            let t1 = self.0.fq2_mul(&t1, &pt.y); // 8yt * (xqzt2 - xt) ^ 3
+            let t = self.0.fq2_sub(&t0, &t1);
+            t
+        };
+
+        let rz = self.0.fq2_mul(&pt.z, &_2_xqzt2_xt);
+
+        let c0 = self.0.fq2_double(&rz);
+        let c1 = {
+            let t = self.0.fq2_add(&_2yqzt3, &_2yt); // 2(yqzt3 + yt) 
+            self.0.fq2_double(&t)
+        };
+        let c2 = {
+            let t0 = self.0.fq2_mul(&_2yqzt3, &pq.x); // 2yqzt3xq 
+            let t0 = self.0.fq2_sub(&t0, &_2yt); // 2(yqzt3xq - yt)
+            let t0 = self.0.fq2_double(&t0); // 4(yqzt3xq - yt)
+            let t0 = self.0.fq2_mul(&t0, &pq.x); // 4xq(yqzt3xq - yt)
+            let t1 = self.0.fq2_mul(&pq.y, &rz); // yqzr
+            let t1 = self.0.fq2_double(&t1); // 2yqzr
+            self.0.fq2_sub(&t0, &t1) // 4xq(yqzt3xq - yt) - yqzr
+        };
+
+        (AssignedG2::new(rx, ry, rz), [c0, c1, c2])
+    }
+
+    fn prepare_g2(
+        &mut self,
+        g2: &mut AssignedG2Affine<C, C::Scalar>,
+    ) -> AssignedG2Prepared<C, C::ScalarExt> {
+        todo!()
+    }
+
     fn ell(
         &mut self,
         f: &AssignedFq12<C::Base, C::Scalar>,
