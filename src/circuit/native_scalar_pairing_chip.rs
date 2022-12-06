@@ -1,5 +1,3 @@
-use std::marker::PhantomData;
-
 use crate::assign::{AssignedFq6, AssignedG2, AssignedG2Affine, AssignedG2Prepared};
 use crate::circuit::integer_chip::IntegerChipOps;
 use crate::context::Context;
@@ -13,7 +11,21 @@ use num_bigint::BigUint;
 
 use super::base_chip::BaseChipOps;
 
+// currently only supports bn256
+// 6U+2 for in NAF form
+pub const BN_X: u64 = 4965661367192848881;
+
+pub const SIX_U_PLUS_2_NAF: [i8; 65] = [
+    0, 0, 0, 1, 0, 1, 0, -1, 0, 0, 1, -1, 0, 0, 1, 0, 0, 1, 1, 0, -1, 0, 0, 1, 0, -1, 0, 0, 0, 0,
+    1, 1, 1, 0, 0, -1, 0, 0, 1, 0, 0, 0, 0, 0, -1, 0, 0, 1, 1, 0, 0, -1, 0, 0, 0, 1, 1, 0, -1, 0,
+    0, 1, 0, 1, 1,
+];
+
 impl<W: BaseExt, N: FieldExt> Context<W, N> {
+    fn fq2_assign_zero(&mut self) -> AssignedFq2<W, N> {
+        let fq2_zero = self.assign_int_constant(W::zero());
+        (fq2_zero, fq2_zero)
+    }
     fn fq2_assign_one(&mut self) -> AssignedFq2<W, N> {
         (
             self.assign_int_constant(W::one()),
@@ -70,6 +82,15 @@ impl<W: BaseExt, N: FieldExt> Context<W, N> {
 }
 
 impl<W: BaseExt, N: FieldExt> Context<W, N> {
+    fn fq6_assign_zero(&mut self) -> AssignedFq6<W, N> {
+        let fq2_zero = self.fq2_assign_zero();
+        (fq2_zero, fq2_zero, fq2_zero)
+    }
+    fn fq6_assign_one(&mut self) -> AssignedFq6<W, N> {
+        let fq2_one = self.fq2_assign_one();
+        let fq2_zero = self.fq2_assign_zero();
+        (fq2_one, fq2_zero, fq2_zero)
+    }
     fn fq6_add(&mut self, a: &AssignedFq6<W, N>, b: &AssignedFq6<W, N>) -> AssignedFq6<W, N> {
         (
             self.fq2_add(&a.0, &b.0),
@@ -197,6 +218,15 @@ impl<W: BaseExt, N: FieldExt> Context<W, N> {
 }
 
 impl<W: BaseExt, N: FieldExt> Context<W, N> {
+    fn fq12_assign_zero(&mut self) -> AssignedFq12<W, N> {
+        let fq6_zero = self.fq6_assign_zero();
+        (fq6_zero, fq6_zero)
+    }
+    fn fq12_assign_one(&mut self) -> AssignedFq12<W, N> {
+        let fq6_one = self.fq6_assign_one();
+        let fq6_zero = self.fq6_assign_zero();
+        (fq6_one, fq6_zero)
+    }
     fn fq12_add(&mut self, a: &AssignedFq12<W, N>, b: &AssignedFq12<W, N>) -> AssignedFq12<W, N> {
         (self.fq6_add(&a.0, &b.0), self.fq6_add(&a.1, &b.1))
     }
@@ -272,6 +302,19 @@ impl<W: BaseExt, N: FieldExt> Context<W, N> {
         let t1 = self.fq6_mul_by_nonresidue(&t1);
         let x1 = self.fq6_add(&t0, &t1);
         (x0, x1)
+    }
+    pub fn fq12_cyclotomic_square(&mut self, x: &AssignedFq12<W, N>) -> AssignedFq12<W, N> {
+        todo!()
+    }
+    pub fn fq12_unsafe_invert(&mut self, x: &AssignedFq12<W, N>) -> AssignedFq12<W, N> {
+        todo!()
+    }
+    pub fn fq12_frobenius_map(
+        &mut self,
+        x: &AssignedFq12<W, N>,
+        power: usize,
+    ) -> AssignedFq12<W, N> {
+        todo!()
     }
 }
 
@@ -424,14 +467,6 @@ impl<C: CurveAffine> NativeScalarEccContext<C> {
         &mut self,
         g2: &AssignedG2Affine<C, C::Scalar>,
     ) -> AssignedG2Prepared<C, C::ScalarExt> {
-        // currently only supports bn256
-        // 6U+2 for in NAF form
-        pub const SIX_U_PLUS_2_NAF: [i8; 65] = [
-            0, 0, 0, 1, 0, 1, 0, -1, 0, 0, 1, -1, 0, 0, 1, 0, 0, 1, 1, 0, -1, 0, 0, 1, 0, -1, 0, 0,
-            0, 0, 1, 1, 1, 0, 0, -1, 0, 0, 1, 0, 0, 0, 0, 0, -1, 0, 0, 1, 1, 0, 0, -1, 0, 0, 0, 1,
-            1, 0, -1, 0, 0, 1, 0, 1, 1,
-        ];
-
         let neg_g2 = self.g2_neg(&g2);
 
         let mut coeffs = vec![];
@@ -463,7 +498,8 @@ impl<C: CurveAffine> NativeScalarEccContext<C> {
         let FROBENIUS_COEFF_FQ6_C1_1 = self.0.fq2_assign_constant(
             bn_to_field(&BigUint::from_bytes_le(&[])),
             bn_to_field(&BigUint::from_bytes_le(&[])),
-        );let FROBENIUS_COEFF_FQ6_C1_2 = self.0.fq2_assign_constant(
+        );
+        let FROBENIUS_COEFF_FQ6_C1_2 = self.0.fq2_assign_constant(
             bn_to_field(&BigUint::from_bytes_le(&[])),
             bn_to_field(&BigUint::from_bytes_le(&[])),
         );
@@ -495,17 +531,13 @@ impl<C: CurveAffine> NativeScalarEccContext<C> {
     fn ell(
         &mut self,
         f: &AssignedFq12<C::Base, C::Scalar>,
-        coeffs: &(
-            AssignedFq2<C::Base, C::Scalar>,
-            AssignedFq2<C::Base, C::Scalar>,
-            AssignedFq2<C::Base, C::Scalar>,
-        ),
+        coeffs: &[AssignedFq2<C::Base, C::Scalar>; 3],
         p: &AssignedG1Affine<C, C::Scalar>,
     ) -> AssignedFq12<C::Base, C::Scalar> {
-        let c00 = &coeffs.0 .0;
-        let c01 = &coeffs.0 .1;
-        let c10 = &coeffs.1 .0;
-        let c11 = &coeffs.1 .1;
+        let c00 = &coeffs[0].0;
+        let c01 = &coeffs[0].1;
+        let c10 = &coeffs[1].0;
+        let c11 = &coeffs[1].1;
 
         let c00 = self.0.int_mul(&c00, &p.y);
         let c01 = self.0.int_mul(&c01, &p.y);
@@ -513,6 +545,161 @@ impl<C: CurveAffine> NativeScalarEccContext<C> {
         let c11 = self.0.int_mul(&c11, &p.x);
 
         self.0
-            .fq12_mul_by_034(f, &(c00, c01), &(c10, c11), &coeffs.2)
+            .fq12_mul_by_034(f, &(c00, c01), &(c10, c11), &coeffs[2])
+    }
+
+    pub fn multi_miller_loop(
+        &mut self,
+        terms: &[(
+            &AssignedG1Affine<C, C::Scalar>,
+            &AssignedG2Prepared<C, C::Scalar>,
+        )],
+    ) -> AssignedFq12<C::Base, C::Scalar> {
+        let mut pairs = vec![];
+        for &(p, q) in terms {
+            // not support identity
+            self.0.assert_false(&p.z);
+            pairs.push((p, q.coeffs.iter()));
+        }
+
+        let mut f = self.0.fq12_assign_one();
+
+        for i in (1..SIX_U_PLUS_2_NAF.len()).rev() {
+            if i != SIX_U_PLUS_2_NAF.len() - 1 {
+                f = self.0.fq12_square(&f);
+            }
+            for &mut (p, ref mut coeffs) in &mut pairs {
+                f = self.ell(&f, coeffs.next().unwrap(), &p);
+            }
+            let x = SIX_U_PLUS_2_NAF[i - 1];
+            match x {
+                1 => {
+                    for &mut (p, ref mut coeffs) in &mut pairs {
+                        f = self.ell(&f, coeffs.next().unwrap(), &p);
+                    }
+                }
+                -1 => {
+                    for &mut (p, ref mut coeffs) in &mut pairs {
+                        f = self.ell(&f, coeffs.next().unwrap(), &p);
+                    }
+                }
+                _ => continue,
+            }
+        }
+
+        for &mut (p, ref mut coeffs) in &mut pairs {
+            f = self.ell(&f, coeffs.next().unwrap(), &p);
+        }
+
+        for &mut (p, ref mut coeffs) in &mut pairs {
+            f = self.ell(&f, coeffs.next().unwrap(), &p);
+        }
+
+        for &mut (_p, ref mut coeffs) in &mut pairs {
+            assert!(coeffs.next().is_none());
+        }
+
+        f
+    }
+
+    fn exp_by_x(
+        &mut self,
+        f: &AssignedFq12<C::Base, C::Scalar>,
+    ) -> AssignedFq12<C::Base, C::Scalar> {
+        let x = BN_X;
+        let mut res = self.0.fq12_assign_one();
+        for i in (0..64).rev() {
+            res = self.0.fq12_cyclotomic_square(&res);
+            if ((x >> i) & 1) == 1 {
+                res = self.0.fq12_mul(&res, &f);
+            }
+        }
+        res
+    }
+
+    fn final_exponentiation(
+        &mut self,
+        f: &AssignedFq12<C::Base, C::Scalar>,
+    ) -> AssignedFq12<C::Base, C::Scalar> {
+        let f1 = self.0.fq12_conjugate(&f);
+        let mut f2 = self.0.fq12_unsafe_invert(&f);
+
+        let mut r = self.0.fq12_mul(&f1, &f2);
+        f2 = r;
+        r = self.0.fq12_frobenius_map(&r, 2);
+        r = self.0.fq12_mul(&r, &f2);
+
+        let mut fp = r;
+        fp = self.0.fq12_frobenius_map(&fp, 1);
+
+        let mut fp2 = r;
+        fp2 = self.0.fq12_frobenius_map(&fp2, 2);
+        let mut fp3 = fp2;
+        fp3 = self.0.fq12_frobenius_map(&fp3, 1);
+
+        let mut fu = r;
+        fu = self.exp_by_x(&fu);
+
+        let mut fu2 = fu;
+        fu2 = self.exp_by_x(&fu2);
+
+        let mut fu3 = fu2;
+        fu3 = self.exp_by_x(&fu3);
+
+        let mut y3 = fu;
+        y3 = self.0.fq12_frobenius_map(&y3, 1);
+
+        let mut fu2p = fu2;
+        fu2p = self.0.fq12_frobenius_map(&fu2p, 1);
+
+        let mut fu3p = fu3;
+        fu3p = self.0.fq12_frobenius_map(&fu3p, 1);
+
+        let mut y2 = fu2;
+        y2 = self.0.fq12_frobenius_map(&y2, 2);
+
+        let mut y0 = fp;
+        y0 = self.0.fq12_mul(&y0, &fp2);
+        y0 = self.0.fq12_mul(&y0, &fp3);
+
+        let mut y1 = r;
+        y1 = self.0.fq12_conjugate(&y1);
+
+        let mut y5 = fu2;
+        y5 = self.0.fq12_conjugate(&y5);
+
+        y3 = self.0.fq12_conjugate(&y3);
+
+        let mut y4 = fu;
+        y4 = self.0.fq12_mul(&y4, &fu2p);
+        y4 = self.0.fq12_conjugate(&y4);
+
+        let mut y6 = fu3;
+        y6 = self.0.fq12_mul(&y6, &fu3p);
+        y6 = self.0.fq12_conjugate(&y6);
+
+        y6 = self.0.fq12_cyclotomic_square(&y6);
+        y6 = self.0.fq12_mul(&y6, &y4);
+        y6 = self.0.fq12_mul(&y6, &y5);
+
+        let mut t1 = y3;
+        t1 = self.0.fq12_mul(&t1, &y5);
+        t1 = self.0.fq12_mul(&t1, &y6);
+
+        y6 = self.0.fq12_mul(&y6, &y2);
+
+        t1 = self.0.fq12_cyclotomic_square(&t1);
+        t1 = self.0.fq12_mul(&t1, &y6);
+        t1 = self.0.fq12_cyclotomic_square(&t1);
+
+        let mut t0 = t1;
+        t0 = self.0.fq12_mul(&t0, &y1);
+
+        t1 = self.0.fq12_mul(&t1, &y0);
+
+        t0 = self.0.fq12_cyclotomic_square(&t0);
+        t0 = self.0.fq12_mul(&t0, &t1);
+
+        t0
     }
 }
