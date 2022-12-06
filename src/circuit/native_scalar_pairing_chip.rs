@@ -37,6 +37,10 @@ pub const FROBENIUS_COEFF_FQ6_C2: [[&[u8]; 2]; 6] = [[&[], &[]]; 6];
 pub const FROBENIUS_COEFF_FQ12_C1: [[&[u8]; 2]; 12] = [[&[], &[]]; 12];
 
 impl<W: BaseExt, N: FieldExt> Context<W, N> {
+    fn fq2_assert_equal(&mut self, x: &AssignedFq2<W, N>, y: &AssignedFq2<W, N>) {
+        self.assert_int_equal(&x.0, &y.0);
+        self.assert_int_equal(&x.1, &y.1);
+    }
     fn fq2_assign_zero(&mut self) -> AssignedFq2<W, N> {
         let fq2_zero = self.assign_int_constant(W::zero());
         (fq2_zero, fq2_zero)
@@ -113,6 +117,11 @@ impl<W: BaseExt, N: FieldExt> Context<W, N> {
 }
 
 impl<W: BaseExt, N: FieldExt> Context<W, N> {
+    fn fq6_assert_equal(&mut self, x: &AssignedFq6<W, N>, y: &AssignedFq6<W, N>) {
+        self.fq2_assert_equal(&x.0, &y.0);
+        self.fq2_assert_equal(&x.1, &y.1);
+        self.fq2_assert_equal(&x.2, &y.2);
+    }
     fn fq6_assign_zero(&mut self) -> AssignedFq6<W, N> {
         let fq2_zero = self.fq2_assign_zero();
         (fq2_zero, fq2_zero, fq2_zero)
@@ -296,6 +305,14 @@ impl<W: BaseExt, N: FieldExt> Context<W, N> {
 }
 
 impl<W: BaseExt, N: FieldExt> Context<W, N> {
+    fn fq12_assert_identity(&mut self, x: &AssignedFq12<W, N>) {
+        let one = self.fq12_assign_one();
+        self.fq12_assert_eq(x, &one);
+    }
+    fn fq12_assert_eq(&mut self, x: &AssignedFq12<W, N>, y: &AssignedFq12<W, N>) {
+        self.fq6_assert_equal(&x.0, &y.0);
+        self.fq6_assert_equal(&x.1, &y.1);
+    }
     fn fq12_assign_zero(&mut self) -> AssignedFq12<W, N> {
         let fq6_zero = self.fq6_assign_zero();
         (fq6_zero, fq6_zero)
@@ -847,5 +864,16 @@ impl<C: CurveAffine> NativeScalarEccContext<C> {
         t0 = self.0.fq12_mul(&t0, &t1);
 
         t0
+    }
+
+    pub fn check_pairing(
+        &mut self,
+        g1: &AssignedG1Affine<C, C::Scalar>,
+        g2: &AssignedG2Affine<C, C::Scalar>,
+    ) {
+        let prepared_g2 = self.prepare_g2(g2);
+        let res = self.multi_miller_loop(&[(g1, &prepared_g2)]);
+        let res = self.final_exponentiation(&res);
+        self.0.fq12_assert_identity(&res);
     }
 }
