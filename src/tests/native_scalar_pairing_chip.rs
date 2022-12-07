@@ -24,7 +24,6 @@ use rand::thread_rng;
 use rand_xorshift::XorShiftRng;
 use std::marker::PhantomData;
 use std::sync::Arc;
-use std::thread;
 
 #[derive(Clone)]
 struct TestChipConfig {
