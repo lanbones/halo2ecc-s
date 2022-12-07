@@ -9,7 +9,7 @@ use crate::{
     assign::{AssignedFq12, AssignedFq2, AssignedG1Affine},
     context::NativeScalarEccContext,
 };
-use halo2_proofs::arithmetic::{BaseExt, CurveAffine, FieldExt};
+use halo2_proofs::arithmetic::{BaseExt, CurveAffine, Engine, FieldExt};
 use num_bigint::BigUint;
 
 use super::base_chip::BaseChipOps;
@@ -37,27 +37,27 @@ pub const FROBENIUS_COEFF_FQ6_C2: [[&[u8]; 2]; 6] = [[&[], &[]]; 6];
 pub const FROBENIUS_COEFF_FQ12_C1: [[&[u8]; 2]; 12] = [[&[], &[]]; 12];
 
 impl<W: BaseExt, N: FieldExt> Context<W, N> {
-    fn fq2_assert_equal(&mut self, x: &AssignedFq2<W, N>, y: &AssignedFq2<W, N>) {
+    pub fn fq2_assert_equal(&mut self, x: &AssignedFq2<W, N>, y: &AssignedFq2<W, N>) {
         self.assert_int_equal(&x.0, &y.0);
         self.assert_int_equal(&x.1, &y.1);
     }
-    fn fq2_assign_zero(&mut self) -> AssignedFq2<W, N> {
+    pub fn fq2_assign_zero(&mut self) -> AssignedFq2<W, N> {
         let fq2_zero = self.assign_int_constant(W::zero());
         (fq2_zero, fq2_zero)
     }
-    fn fq2_assign_one(&mut self) -> AssignedFq2<W, N> {
+    pub fn fq2_assign_one(&mut self) -> AssignedFq2<W, N> {
         (
             self.assign_int_constant(W::one()),
             self.assign_int_constant(W::zero()),
         )
     }
-    fn fq2_assign_constant(&mut self, c0: W, c1: W) -> AssignedFq2<W, N> {
+    pub fn fq2_assign_constant(&mut self, c0: W, c1: W) -> AssignedFq2<W, N> {
         (self.assign_int_constant(c0), self.assign_int_constant(c1))
     }
-    fn fq2_add(&mut self, a: &AssignedFq2<W, N>, b: &AssignedFq2<W, N>) -> AssignedFq2<W, N> {
+    pub fn fq2_add(&mut self, a: &AssignedFq2<W, N>, b: &AssignedFq2<W, N>) -> AssignedFq2<W, N> {
         (self.int_add(&a.0, &b.0), self.int_add(&a.1, &b.1))
     }
-    fn fq2_mul(&mut self, a: &AssignedFq2<W, N>, b: &AssignedFq2<W, N>) -> AssignedFq2<W, N> {
+    pub fn fq2_mul(&mut self, a: &AssignedFq2<W, N>, b: &AssignedFq2<W, N>) -> AssignedFq2<W, N> {
         let ab00 = self.int_mul(&a.0, &b.0);
         let ab11 = self.int_mul(&a.1, &b.1);
         let c0 = self.int_sub(&ab00, &ab11);
@@ -70,22 +70,22 @@ impl<W: BaseExt, N: FieldExt> Context<W, N> {
 
         (c0, c1)
     }
-    fn fq2_sub(&mut self, a: &AssignedFq2<W, N>, b: &AssignedFq2<W, N>) -> AssignedFq2<W, N> {
+    pub fn fq2_sub(&mut self, a: &AssignedFq2<W, N>, b: &AssignedFq2<W, N>) -> AssignedFq2<W, N> {
         (self.int_sub(&a.0, &b.0), self.int_sub(&a.1, &b.1))
     }
-    fn fq2_double(&mut self, a: &AssignedFq2<W, N>) -> AssignedFq2<W, N> {
+    pub fn fq2_double(&mut self, a: &AssignedFq2<W, N>) -> AssignedFq2<W, N> {
         (self.int_add(&a.0, &a.0), self.int_add(&a.1, &a.1))
     }
-    fn fq2_square(&mut self, a: &AssignedFq2<W, N>) -> AssignedFq2<W, N> {
+    pub fn fq2_square(&mut self, a: &AssignedFq2<W, N>) -> AssignedFq2<W, N> {
         self.fq2_mul(a, a)
     }
-    fn fq2_neg(&mut self, a: &AssignedFq2<W, N>) -> AssignedFq2<W, N> {
+    pub fn fq2_neg(&mut self, a: &AssignedFq2<W, N>) -> AssignedFq2<W, N> {
         (self.int_neg(&a.0), self.int_neg(&a.1))
     }
-    fn fq2_conjugate(&mut self, a: &AssignedFq2<W, N>) -> AssignedFq2<W, N> {
+    pub fn fq2_conjugate(&mut self, a: &AssignedFq2<W, N>) -> AssignedFq2<W, N> {
         (a.0, self.int_neg(&a.1))
     }
-    fn fq2_mul_by_nonresidue(&mut self, a: &AssignedFq2<W, N>) -> AssignedFq2<W, N> {
+    pub fn fq2_mul_by_nonresidue(&mut self, a: &AssignedFq2<W, N>) -> AssignedFq2<W, N> {
         let a2 = self.fq2_double(a);
         let a4 = self.fq2_double(&a2);
         let a8 = self.fq2_double(&a4);
@@ -117,28 +117,28 @@ impl<W: BaseExt, N: FieldExt> Context<W, N> {
 }
 
 impl<W: BaseExt, N: FieldExt> Context<W, N> {
-    fn fq6_assert_equal(&mut self, x: &AssignedFq6<W, N>, y: &AssignedFq6<W, N>) {
+    pub fn fq6_assert_equal(&mut self, x: &AssignedFq6<W, N>, y: &AssignedFq6<W, N>) {
         self.fq2_assert_equal(&x.0, &y.0);
         self.fq2_assert_equal(&x.1, &y.1);
         self.fq2_assert_equal(&x.2, &y.2);
     }
-    fn fq6_assign_zero(&mut self) -> AssignedFq6<W, N> {
+    pub fn fq6_assign_zero(&mut self) -> AssignedFq6<W, N> {
         let fq2_zero = self.fq2_assign_zero();
         (fq2_zero, fq2_zero, fq2_zero)
     }
-    fn fq6_assign_one(&mut self) -> AssignedFq6<W, N> {
+    pub fn fq6_assign_one(&mut self) -> AssignedFq6<W, N> {
         let fq2_one = self.fq2_assign_one();
         let fq2_zero = self.fq2_assign_zero();
         (fq2_one, fq2_zero, fq2_zero)
     }
-    fn fq6_add(&mut self, a: &AssignedFq6<W, N>, b: &AssignedFq6<W, N>) -> AssignedFq6<W, N> {
+    pub fn fq6_add(&mut self, a: &AssignedFq6<W, N>, b: &AssignedFq6<W, N>) -> AssignedFq6<W, N> {
         (
             self.fq2_add(&a.0, &b.0),
             self.fq2_add(&a.1, &b.1),
             self.fq2_add(&a.2, &b.2),
         )
     }
-    fn fq6_mul(&mut self, a: &AssignedFq6<W, N>, b: &AssignedFq6<W, N>) -> AssignedFq6<W, N> {
+    pub fn fq6_mul(&mut self, a: &AssignedFq6<W, N>, b: &AssignedFq6<W, N>) -> AssignedFq6<W, N> {
         let ab00 = self.fq2_mul(&a.0, &b.0);
         let ab11 = self.fq2_mul(&a.1, &b.1);
         let ab22 = self.fq2_mul(&a.2, &b.2);
@@ -174,30 +174,34 @@ impl<W: BaseExt, N: FieldExt> Context<W, N> {
 
         (c0, c1, c2)
     }
-    fn fq6_sub(&mut self, a: &AssignedFq6<W, N>, b: &AssignedFq6<W, N>) -> AssignedFq6<W, N> {
+    pub fn fq6_sub(&mut self, a: &AssignedFq6<W, N>, b: &AssignedFq6<W, N>) -> AssignedFq6<W, N> {
         (
             self.fq2_sub(&a.0, &b.0),
             self.fq2_sub(&a.1, &b.1),
             self.fq2_sub(&a.2, &b.2),
         )
     }
-    fn fq6_double(&mut self, a: &AssignedFq6<W, N>) -> AssignedFq6<W, N> {
+    pub fn fq6_double(&mut self, a: &AssignedFq6<W, N>) -> AssignedFq6<W, N> {
         (
             self.fq2_double(&a.0),
             self.fq2_double(&a.1),
             self.fq2_double(&a.2),
         )
     }
-    fn fq6_square(&mut self, a: &AssignedFq6<W, N>) -> AssignedFq6<W, N> {
+    pub fn fq6_square(&mut self, a: &AssignedFq6<W, N>) -> AssignedFq6<W, N> {
         self.fq6_mul(a, a)
     }
-    fn fq6_neg(&mut self, a: &AssignedFq6<W, N>) -> AssignedFq6<W, N> {
+    pub fn fq6_neg(&mut self, a: &AssignedFq6<W, N>) -> AssignedFq6<W, N> {
         (self.fq2_neg(&a.0), self.fq2_neg(&a.1), self.fq2_neg(&a.2))
     }
-    fn fq6_mul_by_nonresidue(&mut self, a: &AssignedFq6<W, N>) -> AssignedFq6<W, N> {
+    pub fn fq6_mul_by_nonresidue(&mut self, a: &AssignedFq6<W, N>) -> AssignedFq6<W, N> {
         (self.fq2_mul_by_nonresidue(&a.2), a.0, a.1)
     }
-    fn fq6_mul_by_1(&mut self, a: &AssignedFq6<W, N>, b1: &AssignedFq2<W, N>) -> AssignedFq6<W, N> {
+    pub fn fq6_mul_by_1(
+        &mut self,
+        a: &AssignedFq6<W, N>,
+        b1: &AssignedFq2<W, N>,
+    ) -> AssignedFq6<W, N> {
         let ab11 = self.fq2_mul(&a.1, &b1);
 
         let c0 = {
@@ -219,7 +223,7 @@ impl<W: BaseExt, N: FieldExt> Context<W, N> {
 
         (c0, c1, c2)
     }
-    fn fq6_mul_by_01(
+    pub fn fq6_mul_by_01(
         &mut self,
         a: &AssignedFq6<W, N>,
         b0: &AssignedFq2<W, N>,
@@ -305,27 +309,35 @@ impl<W: BaseExt, N: FieldExt> Context<W, N> {
 }
 
 impl<W: BaseExt, N: FieldExt> Context<W, N> {
-    fn fq12_assert_identity(&mut self, x: &AssignedFq12<W, N>) {
+    pub fn fq12_assert_identity(&mut self, x: &AssignedFq12<W, N>) {
         let one = self.fq12_assign_one();
         self.fq12_assert_eq(x, &one);
     }
-    fn fq12_assert_eq(&mut self, x: &AssignedFq12<W, N>, y: &AssignedFq12<W, N>) {
+    pub fn fq12_assert_eq(&mut self, x: &AssignedFq12<W, N>, y: &AssignedFq12<W, N>) {
         self.fq6_assert_equal(&x.0, &y.0);
         self.fq6_assert_equal(&x.1, &y.1);
     }
-    fn fq12_assign_zero(&mut self) -> AssignedFq12<W, N> {
+    pub fn fq12_assign_zero(&mut self) -> AssignedFq12<W, N> {
         let fq6_zero = self.fq6_assign_zero();
         (fq6_zero, fq6_zero)
     }
-    fn fq12_assign_one(&mut self) -> AssignedFq12<W, N> {
+    pub fn fq12_assign_one(&mut self) -> AssignedFq12<W, N> {
         let fq6_one = self.fq6_assign_one();
         let fq6_zero = self.fq6_assign_zero();
         (fq6_one, fq6_zero)
     }
-    fn fq12_add(&mut self, a: &AssignedFq12<W, N>, b: &AssignedFq12<W, N>) -> AssignedFq12<W, N> {
+    pub fn fq12_add(
+        &mut self,
+        a: &AssignedFq12<W, N>,
+        b: &AssignedFq12<W, N>,
+    ) -> AssignedFq12<W, N> {
         (self.fq6_add(&a.0, &b.0), self.fq6_add(&a.1, &b.1))
     }
-    fn fq12_mul(&mut self, a: &AssignedFq12<W, N>, b: &AssignedFq12<W, N>) -> AssignedFq12<W, N> {
+    pub fn fq12_mul(
+        &mut self,
+        a: &AssignedFq12<W, N>,
+        b: &AssignedFq12<W, N>,
+    ) -> AssignedFq12<W, N> {
         let ab00 = self.fq6_mul(&a.0, &b.0);
         let ab11 = self.fq6_mul(&a.1, &b.1);
 
@@ -340,22 +352,26 @@ impl<W: BaseExt, N: FieldExt> Context<W, N> {
 
         (c0, c1)
     }
-    fn fq12_sub(&mut self, a: &AssignedFq12<W, N>, b: &AssignedFq12<W, N>) -> AssignedFq12<W, N> {
+    pub fn fq12_sub(
+        &mut self,
+        a: &AssignedFq12<W, N>,
+        b: &AssignedFq12<W, N>,
+    ) -> AssignedFq12<W, N> {
         (self.fq6_sub(&a.0, &b.0), self.fq6_sub(&a.1, &b.1))
     }
-    fn fq12_double(&mut self, a: &AssignedFq12<W, N>) -> AssignedFq12<W, N> {
+    pub fn fq12_double(&mut self, a: &AssignedFq12<W, N>) -> AssignedFq12<W, N> {
         (self.fq6_double(&a.0), self.fq6_double(&a.1))
     }
-    fn fq12_square(&mut self, a: &AssignedFq12<W, N>) -> AssignedFq12<W, N> {
+    pub fn fq12_square(&mut self, a: &AssignedFq12<W, N>) -> AssignedFq12<W, N> {
         self.fq12_mul(a, a)
     }
-    fn fq12_neg(&mut self, a: &AssignedFq12<W, N>) -> AssignedFq12<W, N> {
+    pub fn fq12_neg(&mut self, a: &AssignedFq12<W, N>) -> AssignedFq12<W, N> {
         (self.fq6_neg(&a.0), self.fq6_neg(&a.1))
     }
-    fn fq12_conjugate(&mut self, x: &AssignedFq12<W, N>) -> AssignedFq12<W, N> {
+    pub fn fq12_conjugate(&mut self, x: &AssignedFq12<W, N>) -> AssignedFq12<W, N> {
         (x.0, self.fq6_neg(&x.1))
     }
-    fn fq12_mul_by_014(
+    pub fn fq12_mul_by_014(
         &mut self,
         x: &AssignedFq12<W, N>,
         c0: &AssignedFq2<W, N>,
@@ -376,7 +392,7 @@ impl<W: BaseExt, N: FieldExt> Context<W, N> {
 
         (x0, x1)
     }
-    fn fq12_mul_by_034(
+    pub fn fq12_mul_by_034(
         &mut self,
         x: &AssignedFq12<W, N>,
         c0: &AssignedFq2<W, N>,
@@ -398,7 +414,7 @@ impl<W: BaseExt, N: FieldExt> Context<W, N> {
         let x1 = self.fq6_add(&t0, &t1);
         (x0, x1)
     }
-    fn fp4_square(
+    pub fn fp4_square(
         &mut self,
         c0: &mut AssignedFq2<W, N>,
         c1: &mut AssignedFq2<W, N>,
@@ -482,7 +498,7 @@ impl<W: BaseExt, N: FieldExt> Context<W, N> {
 }
 
 impl<C: CurveAffine> NativeScalarEccContext<C> {
-    fn doubling_step(
+    pub fn doubling_step(
         &mut self,
         pt: &AssignedG2<C, C::Scalar>,
     ) -> (
@@ -551,7 +567,7 @@ impl<C: CurveAffine> NativeScalarEccContext<C> {
         (AssignedG2::new(rx, ry, rz), [c0, c1, c2])
     }
 
-    fn addition_step(
+    pub fn addition_step(
         &mut self,
         pt: &AssignedG2<C, C::Scalar>,
         pq: &AssignedG2Affine<C, C::Scalar>,
@@ -613,7 +629,10 @@ impl<C: CurveAffine> NativeScalarEccContext<C> {
         (AssignedG2::new(rx, ry, rz), [c0, c1, c2])
     }
 
-    fn g2affine_to_g2(&mut self, g2: &AssignedG2Affine<C, C::Scalar>) -> AssignedG2<C, C::Scalar> {
+    pub fn g2affine_to_g2(
+        &mut self,
+        g2: &AssignedG2Affine<C, C::Scalar>,
+    ) -> AssignedG2<C, C::Scalar> {
         // not support identity
         self.0.assert_false(&g2.z);
         let z = self.0.fq2_assign_one();
@@ -621,12 +640,15 @@ impl<C: CurveAffine> NativeScalarEccContext<C> {
         AssignedG2::new(g2.x, g2.y, z)
     }
 
-    fn g2_neg(&mut self, g2: &AssignedG2Affine<C, C::Scalar>) -> AssignedG2Affine<C, C::Scalar> {
+    pub fn g2_neg(
+        &mut self,
+        g2: &AssignedG2Affine<C, C::Scalar>,
+    ) -> AssignedG2Affine<C, C::Scalar> {
         let y = self.0.fq2_neg(&g2.y);
         AssignedG2Affine::new(g2.x, y, g2.z)
     }
 
-    fn prepare_g2(
+    pub fn prepare_g2(
         &mut self,
         g2: &AssignedG2Affine<C, C::Scalar>,
     ) -> AssignedG2Prepared<C, C::ScalarExt> {
@@ -691,7 +713,7 @@ impl<C: CurveAffine> NativeScalarEccContext<C> {
         AssignedG2Prepared::new(coeffs)
     }
 
-    fn ell(
+    pub fn ell(
         &mut self,
         f: &AssignedFq12<C::Base, C::Scalar>,
         coeffs: &[AssignedFq2<C::Base, C::Scalar>; 3],
@@ -765,7 +787,7 @@ impl<C: CurveAffine> NativeScalarEccContext<C> {
         f
     }
 
-    fn exp_by_x(
+    pub fn exp_by_x(
         &mut self,
         f: &AssignedFq12<C::Base, C::Scalar>,
     ) -> AssignedFq12<C::Base, C::Scalar> {
@@ -780,7 +802,7 @@ impl<C: CurveAffine> NativeScalarEccContext<C> {
         res
     }
 
-    fn final_exponentiation(
+    pub fn final_exponentiation(
         &mut self,
         f: &AssignedFq12<C::Base, C::Scalar>,
     ) -> AssignedFq12<C::Base, C::Scalar> {
@@ -868,11 +890,20 @@ impl<C: CurveAffine> NativeScalarEccContext<C> {
 
     pub fn check_pairing(
         &mut self,
-        g1: &AssignedG1Affine<C, C::Scalar>,
-        g2: &AssignedG2Affine<C, C::Scalar>,
+        terms: &[(
+            &AssignedG1Affine<C, C::Scalar>,
+            &AssignedG2Affine<C, C::Scalar>,
+        )],
     ) {
-        let prepared_g2 = self.prepare_g2(g2);
-        let res = self.multi_miller_loop(&[(g1, &prepared_g2)]);
+        let prepared_terms = terms
+            .iter()
+            .map(|(p, q)| (*p, self.prepare_g2(q)))
+            .collect::<Vec<_>>();
+        let terms = prepared_terms
+            .iter()
+            .map(|(p, q)| (*p, q))
+            .collect::<Vec<_>>();
+        let res = self.multi_miller_loop(&terms[..]);
         let res = self.final_exponentiation(&res);
         self.0.fq12_assert_identity(&res);
     }
