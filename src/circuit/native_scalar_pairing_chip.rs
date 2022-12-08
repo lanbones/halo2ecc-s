@@ -9,335 +9,11 @@ use crate::{
     assign::{AssignedFq12, AssignedFq2, AssignedG1Affine},
     context::NativeScalarEccContext,
 };
-use halo2_proofs::arithmetic::{BaseExt, CurveAffine, Engine, FieldExt};
+use halo2_proofs::arithmetic::{BaseExt, CurveAffine, FieldExt};
 use num_bigint::BigUint;
 
 use super::base_chip::BaseChipOps;
-
-// currently only supports bn256
-// 6U+2 for in NAF form
-pub const BN_X: u64 = 4965661367192848881;
-
-pub const SIX_U_PLUS_2_NAF: [i8; 65] = [
-    0, 0, 0, 1, 0, 1, 0, -1, 0, 0, 1, -1, 0, 0, 1, 0, 0, 1, 1, 0, -1, 0, 0, 1, 0, -1, 0, 0, 0, 0,
-    1, 1, 1, 0, 0, -1, 0, 0, 1, 0, 0, 0, 0, 0, -1, 0, 0, 1, 1, 0, 0, -1, 0, 0, 0, 1, 1, 0, -1, 0,
-    0, 1, 0, 1, 1,
-];
-
-pub const XI_TO_Q_MINUS_1_OVER_2: [[u64; 4]; 2] = [
-    [
-        0xe4bbdd0c2936b629,
-        0xbb30f162e133bacb,
-        0x31a9d1b6f9645366,
-        0x253570bea500f8dd,
-    ],
-    [
-        0xa1d77ce45ffe77c7,
-        0x07affd117826d1db,
-        0x6d16bd27bb7edc6b,
-        0x2c87200285defecc,
-    ],
-];
-
-pub const FROBENIUS_COEFF_FQ2_C1: [[u64; 4]; 2] = [
-    [
-        0xd35d438dc58f0d9d,
-        0x0a78eb28f5c70b3d,
-        0x666ea36f7879462c,
-        0x0e0a77c19a07df2f,
-    ],
-    [
-        0x68c3488912edefaa,
-        0x8d087f6872aabf4f,
-        0x51e1a24709081231,
-        0x2259d6b14729c0fa,
-    ],
-];
-
-pub const FROBENIUS_COEFF_FQ6_C1: [[[u64; 4]; 2]; 6] = [
-    [
-        [
-            0xd35d438dc58f0d9d,
-            0x0a78eb28f5c70b3d,
-            0x666ea36f7879462c,
-            0x0e0a77c19a07df2f,
-        ],
-        [0x0, 0x0, 0x0, 0x0],
-    ],
-    [
-        [
-            0xb5773b104563ab30,
-            0x347f91c8a9aa6454,
-            0x7a007127242e0991,
-            0x1956bcd8118214ec,
-        ],
-        [
-            0x6e849f1ea0aa4757,
-            0xaa1c7b6d89f89141,
-            0xb6e713cdfae0ca3a,
-            0x26694fbb4e82ebc3,
-        ],
-    ],
-    [
-        [
-            0x3350c88e13e80b9c,
-            0x7dce557cdb5e56b9,
-            0x6001b4b8b615564a,
-            0x2682e617020217e0,
-        ],
-        [0x0, 0x0, 0x0, 0x0],
-    ],
-    [
-        [
-            0xc9af22f716ad6bad,
-            0xb311782a4aa662b2,
-            0x19eeaf64e248c7f4,
-            0x20273e77e3439f82,
-        ],
-        [
-            0xacc02860f7ce93ac,
-            0x3933d5817ba76b4c,
-            0x69e6188b446c8467,
-            0x0a46036d4417cc55,
-        ],
-    ],
-    [
-        [
-            0x71930c11d782e155,
-            0xa6bb947cffbe3323,
-            0xaa303344d4741444,
-            0x2c3b3f0d26594943,
-        ],
-        [0x0, 0x0, 0x0, 0x0],
-    ],
-    [
-        [
-            0xf91aba2654e8e3b1,
-            0x4771cb2fdc92ce12,
-            0xdcb16ae0fc8bdf35,
-            0x274aa195cd9d8be4,
-        ],
-        [
-            0x5cfc50ae18811f8b,
-            0x4bb28433cb43988c,
-            0x4fd35f13c3b56219,
-            0x301949bd2fc8883a,
-        ],
-    ],
-];
-
-pub const FROBENIUS_COEFF_FQ6_C2: [[[u64; 4]; 2]; 6] = [
-    [
-        [
-            0xd35d438dc58f0d9d,
-            0x0a78eb28f5c70b3d,
-            0x666ea36f7879462c,
-            0x0e0a77c19a07df2f,
-        ],
-        [0x0, 0x0, 0x0, 0x0],
-    ],
-    [
-        [
-            0x7361d77f843abe92,
-            0xa5bb2bd3273411fb,
-            0x9c941f314b3e2399,
-            0x15df9cddbb9fd3ec,
-        ],
-        [
-            0x5dddfd154bd8c949,
-            0x62cb29a5a4445b60,
-            0x37bc870a0c7dd2b9,
-            0x24830a9d3171f0fd,
-        ],
-    ],
-    [
-        [
-            0x71930c11d782e155,
-            0xa6bb947cffbe3323,
-            0xaa303344d4741444,
-            0x2c3b3f0d26594943,
-        ],
-        [0x0, 0x0, 0x0, 0x0],
-    ],
-    [
-        [
-            0x448a93a57b6762df,
-            0xbfd62df528fdeadf,
-            0xd858f5d00e9bd47a,
-            0x06b03d4d3476ec58,
-        ],
-        [
-            0x2b19daf4bcc936d1,
-            0xa1a54e7a56f4299f,
-            0xb533eee05adeaef1,
-            0x170c812b84dda0b2,
-        ],
-    ],
-    [
-        [
-            0x3350c88e13e80b9c,
-            0x7dce557cdb5e56b9,
-            0x6001b4b8b615564a,
-            0x2682e617020217e0,
-        ],
-        [0x0, 0x0, 0x0, 0x0],
-    ],
-    [
-        [
-            0x843420f1d8dadbd6,
-            0x31f010c9183fcdb2,
-            0x436330b527a76049,
-            0x13d47447f11adfe4,
-        ],
-        [
-            0xef494023a857fa74,
-            0x2a925d02d5ab101a,
-            0x83b015829ba62f10,
-            0x2539111d0c13aea3,
-        ],
-    ],
-];
-
-pub const FROBENIUS_COEFF_FQ12_C1: [[[u64; 4]; 2]; 12] = [
-    [
-        [
-            0xd35d438dc58f0d9d,
-            0x0a78eb28f5c70b3d,
-            0x666ea36f7879462c,
-            0x0e0a77c19a07df2f,
-        ],
-        [0x0, 0x0, 0x0, 0x0],
-    ],
-    [
-        [
-            0xaf9ba69633144907,
-            0xca6b1d7387afb78a,
-            0x11bded5ef08a2087,
-            0x02f34d751a1f3a7c,
-        ],
-        [
-            0xa222ae234c492d72,
-            0xd00f02a4565de15b,
-            0xdc2ff3a253dfc926,
-            0x10a75716b3899551,
-        ],
-    ],
-    [
-        [
-            0xca8d800500fa1bf2,
-            0xf0c5d61468b39769,
-            0x0e201271ad0d4418,
-            0x04290f65bad856e6,
-        ],
-        [0x0, 0x0, 0x0, 0x0],
-    ],
-    [
-        [
-            0x365316184e46d97d,
-            0x0af7129ed4c96d9f,
-            0x659da72fca1009b5,
-            0x08116d8983a20d23,
-        ],
-        [
-            0xb1df4af7c39c1939,
-            0x3d9f02878a73bf7f,
-            0x9b2220928caf0ae0,
-            0x26684515eff054a6,
-        ],
-    ],
-    [
-        [
-            0x3350c88e13e80b9c,
-            0x7dce557cdb5e56b9,
-            0x6001b4b8b615564a,
-            0x2682e617020217e0,
-        ],
-        [0x0, 0x0, 0x0, 0x0],
-    ],
-    [
-        [
-            0x86b76f821b329076,
-            0x408bf52b4d19b614,
-            0x53dfb9d0d985e92d,
-            0x051e20146982d2a7,
-        ],
-        [
-            0x0fbc9cd47752ebc7,
-            0x6d8fffe33415de24,
-            0xbef22cf038cf41b9,
-            0x15c0edff3c66bf54,
-        ],
-    ],
-    [
-        [
-            0x68c3488912edefaa,
-            0x8d087f6872aabf4f,
-            0x51e1a24709081231,
-            0x2259d6b14729c0fa,
-        ],
-        [0x0, 0x0, 0x0, 0x0],
-    ],
-    [
-        [
-            0x8c84e580a568b440,
-            0xcd164d1de0c21302,
-            0xa692585790f737d5,
-            0x2d7100fdc71265ad,
-        ],
-        [
-            0x99fdddf38c33cfd5,
-            0xc77267ed1213e931,
-            0xdc2052142da18f36,
-            0x1fbcf75c2da80ad7,
-        ],
-    ],
-    [
-        [
-            0x71930c11d782e155,
-            0xa6bb947cffbe3323,
-            0xaa303344d4741444,
-            0x2c3b3f0d26594943,
-        ],
-        [0x0, 0x0, 0x0, 0x0],
-    ],
-    [
-        [
-            0x05cd75fe8a3623ca,
-            0x8c8a57f293a85cee,
-            0x52b29e86b7714ea8,
-            0x2852e0e95d8f9306,
-        ],
-        [
-            0x8a41411f14e0e40e,
-            0x59e26809ddfe0b0d,
-            0x1d2e2523f4d24d7d,
-            0x09fc095cf1414b83,
-        ],
-    ],
-    [
-        [
-            0x08cfc388c494f1ab,
-            0x19b315148d1373d4,
-            0x584e90fdcb6c0213,
-            0x09e1685bdf2f8849,
-        ],
-        [0x0, 0x0, 0x0, 0x0],
-    ],
-    [
-        [
-            0xb5691c94bd4a6cd1,
-            0x56f575661b581478,
-            0x64708be5a7fb6f30,
-            0x2b462e5e77aecd82,
-        ],
-        [
-            0x2c63ef42612a1180,
-            0x29f16aae345bec69,
-            0xf95e18c648b216a4,
-            0x1aa36073a4cae0d4,
-        ],
-    ],
-];
+use super::bn256_constants::*;
 
 impl<W: BaseExt, N: FieldExt> Context<W, N> {
     pub fn fq2_assert_equal(&mut self, x: &AssignedFq2<W, N>, y: &AssignedFq2<W, N>) {
@@ -413,9 +89,7 @@ impl<W: BaseExt, N: FieldExt> Context<W, N> {
     }
     pub fn fq2_frobenius_map(&mut self, x: &AssignedFq2<W, N>, power: usize) -> AssignedFq2<W, N> {
         let v = self.assign_int_constant(bn_to_field(&BigUint::from_bytes_le(
-            &FROBENIUS_COEFF_FQ2_C1[power % 2]
-                .map(|x| x.to_le_bytes())
-                .concat(),
+            &FROBENIUS_COEFF_FQ2_C1[power % 2],
         )));
         (x.0, self.int_mul(&x.1, &v))
     }
@@ -600,18 +274,12 @@ impl<W: BaseExt, N: FieldExt> Context<W, N> {
         let c1 = self.fq2_frobenius_map(&x.1, power);
         let c2 = self.fq2_frobenius_map(&x.2, power);
 
-        let coeff_c1 = FROBENIUS_COEFF_FQ6_C1[power % 6].map(|x| {
-            bn_to_field(&BigUint::from_bytes_le(
-                &x.map(|x| x.to_le_bytes()).concat(),
-            ))
-        });
+        let coeff_c1 =
+            FROBENIUS_COEFF_FQ6_C1[power % 6].map(|x| bn_to_field(&BigUint::from_bytes_le(&x)));
         let coeff_c1 = self.fq2_assign_constant(coeff_c1[0], coeff_c1[1]);
         let c1 = self.fq2_mul(&c1, &coeff_c1);
-        let coeff_c2 = FROBENIUS_COEFF_FQ6_C2[power % 6].map(|x| {
-            bn_to_field(&BigUint::from_bytes_le(
-                &x.map(|x| x.to_le_bytes()).concat(),
-            ))
-        });
+        let coeff_c2 =
+            FROBENIUS_COEFF_FQ6_C2[power % 6].map(|x| bn_to_field(&BigUint::from_bytes_le(&x)));
         let coeff_c2 = self.fq2_assign_constant(coeff_c2[0], coeff_c2[1]);
         let c2 = self.fq2_mul(&c2, &coeff_c2);
 
@@ -620,7 +288,7 @@ impl<W: BaseExt, N: FieldExt> Context<W, N> {
 }
 
 impl<W: BaseExt, N: FieldExt> Context<W, N> {
-    pub fn fq12_assert_identity(&mut self, x: &AssignedFq12<W, N>) {
+    pub fn fq12_assert_one(&mut self, x: &AssignedFq12<W, N>) {
         let one = self.fq12_assign_one();
         self.fq12_assert_eq(x, &one);
     }
@@ -797,11 +465,8 @@ impl<W: BaseExt, N: FieldExt> Context<W, N> {
         let c0 = self.fq6_frobenius_map(&x.0, power);
         let c1 = self.fq6_frobenius_map(&x.1, power);
 
-        let coeff = FROBENIUS_COEFF_FQ12_C1[power % 12].map(|x| {
-            bn_to_field(&BigUint::from_bytes_le(
-                &x.map(|x| x.to_le_bytes()).concat(),
-            ))
-        });
+        let coeff =
+            FROBENIUS_COEFF_FQ12_C1[power % 12].map(|x| bn_to_field(&BigUint::from_bytes_le(&x)));
         let coeff = self.fq2_assign_constant(coeff[0], coeff[1]);
         let c1c0 = self.fq2_mul(&c1.0, &coeff);
         let c1c1 = self.fq2_mul(&c1.1, &coeff);
@@ -852,8 +517,8 @@ impl<C: CurveAffine> NativeScalarEccContext<C> {
         };
 
         let ry = {
-            let t = self.0.fq2_sub(&_4xy2, &pt.x);
-            let t = self.0.fq2_mul(&t, &_3x2_x);
+            let t = self.0.fq2_sub(&_4xy2, &rx);
+            let t = self.0.fq2_mul(&t, &_3x2);
             let t = self.0.fq2_sub(&t, &_8y4);
             t
         };
@@ -893,9 +558,8 @@ impl<C: CurveAffine> NativeScalarEccContext<C> {
         let zt2 = self.0.fq2_square(&pt.z);
         let yqzt = self.0.fq2_mul(&pq.y, &pt.z);
         let yqzt3 = self.0.fq2_mul(&yqzt, &zt2);
-        let _2yqzt3 = self.0.fq2_double(&yqzt3);
-        let _2yt = self.0.fq2_double(&pt.y);
-        let _2yqzt3_2yt = self.0.fq2_sub(&_2yqzt3, &_2yt);
+        let yqzt3_yt = self.0.fq2_sub(&yqzt3, &pt.y);
+        let _2yqzt3_2yt = self.0.fq2_double(&yqzt3_yt);
 
         let xqzt2 = self.0.fq2_mul(&pq.x, &zt2);
         let xqzt2_xt = self.0.fq2_sub(&xqzt2, &pt.x);
@@ -927,13 +591,11 @@ impl<C: CurveAffine> NativeScalarEccContext<C> {
 
         let c0 = self.0.fq2_double(&rz);
         let c1 = {
-            let t = self.0.fq2_add(&_2yqzt3, &_2yt); // 2(yqzt3 + yt)
-            self.0.fq2_double(&t)
+            let t = self.0.fq2_double(&_2yqzt3_2yt);
+            self.0.fq2_neg(&t)
         };
         let c2 = {
-            let t0 = self.0.fq2_mul(&_2yqzt3, &pq.x); // 2yqzt3xq
-            let t0 = self.0.fq2_sub(&t0, &_2yt); // 2(yqzt3xq - yt)
-            let t0 = self.0.fq2_double(&t0); // 4(yqzt3xq - yt)
+            let t0 = self.0.fq2_double(&_2yqzt3_2yt); // 4(yqzt3xq - yt)
             let t0 = self.0.fq2_mul(&t0, &pq.x); // 4xq(yqzt3xq - yt)
             let t1 = self.0.fq2_mul(&pq.y, &rz); // yqzr
             let t1 = self.0.fq2_double(&t1); // 2yqzr
@@ -994,36 +656,16 @@ impl<C: CurveAffine> NativeScalarEccContext<C> {
         let mut q1 = g2.clone();
 
         let c11 = self.0.fq2_assign_constant(
-            bn_to_field(&BigUint::from_bytes_le(
-                &FROBENIUS_COEFF_FQ6_C1[1][0]
-                    .map(|x| x.to_le_bytes())
-                    .concat(),
-            )),
-            bn_to_field(&BigUint::from_bytes_le(
-                &FROBENIUS_COEFF_FQ6_C1[1][1]
-                    .map(|x| x.to_le_bytes())
-                    .concat(),
-            )),
+            bn_to_field(&BigUint::from_bytes_le(&FROBENIUS_COEFF_FQ6_C1[1][0])),
+            bn_to_field(&BigUint::from_bytes_le(&FROBENIUS_COEFF_FQ6_C1[1][1])),
         );
         let c12 = self.0.fq2_assign_constant(
-            bn_to_field(&BigUint::from_bytes_le(
-                &FROBENIUS_COEFF_FQ6_C1[2][0]
-                    .map(|x| x.to_le_bytes())
-                    .concat(),
-            )),
-            bn_to_field(&BigUint::from_bytes_le(
-                &FROBENIUS_COEFF_FQ6_C1[2][1]
-                    .map(|x| x.to_le_bytes())
-                    .concat(),
-            )),
+            bn_to_field(&BigUint::from_bytes_le(&FROBENIUS_COEFF_FQ6_C1[2][0])),
+            bn_to_field(&BigUint::from_bytes_le(&FROBENIUS_COEFF_FQ6_C1[2][1])),
         );
         let xi = self.0.fq2_assign_constant(
-            bn_to_field(&BigUint::from_bytes_le(
-                &XI_TO_Q_MINUS_1_OVER_2[0].map(|x| x.to_le_bytes()).concat(),
-            )),
-            bn_to_field(&BigUint::from_bytes_le(
-                &XI_TO_Q_MINUS_1_OVER_2[1].map(|x| x.to_le_bytes()).concat(),
-            )),
+            bn_to_field(&BigUint::from_bytes_le(&XI_TO_Q_MINUS_1_OVER_2[0])),
+            bn_to_field(&BigUint::from_bytes_le(&XI_TO_Q_MINUS_1_OVER_2[1])),
         );
 
         q1.x.1 = self.0.int_neg(&q1.x.1);
@@ -1039,8 +681,7 @@ impl<C: CurveAffine> NativeScalarEccContext<C> {
         let mut minusq2 = g2.clone();
         minusq2.x = self.0.fq2_mul(&minusq2.x, &c12);
 
-        let (new_r, coeff) = self.addition_step(&r, &minusq2);
-        r = new_r;
+        let (_, coeff) = self.addition_step(&r, &minusq2);
         coeffs.push(coeff);
 
         AssignedG2Prepared::new(coeffs)
@@ -1238,7 +879,6 @@ impl<C: CurveAffine> NativeScalarEccContext<C> {
             .collect::<Vec<_>>();
         let res = self.multi_miller_loop(&terms[..]);
         let res = self.final_exponentiation(&res);
-        println!("{}", self.0.base_offset);
-        self.0.fq12_assert_identity(&res);
+        self.0.fq12_assert_one(&res);
     }
 }
