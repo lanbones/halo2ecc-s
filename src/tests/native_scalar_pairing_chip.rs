@@ -1,4 +1,4 @@
-use crate::assign::{AssignedCondition, AssignedG2Affine, AssignedPoint};
+use crate::assign::{AssignedCondition, AssignedG2Affine};
 use crate::circuit::base_chip::{BaseChip, BaseChipConfig, BaseChipOps};
 use crate::circuit::native_scalar_ecc_chip::EccChipOps;
 use crate::circuit::range_chip::RangeChip;
@@ -6,22 +6,16 @@ use crate::circuit::range_chip::RangeChipConfig;
 use crate::context::Records;
 use crate::context::{Context, NativeScalarEccContext};
 use crate::range_info::RangeInfo;
-use crate::tests::random_fr;
 use ark_std::{end_timer, start_timer};
 use halo2_proofs::arithmetic::{CurveAffine, FieldExt};
-use halo2_proofs::pairing::bn256::{Bn256, Fq, Fr, G1Affine, G2Affine, G1, G2};
+use halo2_proofs::pairing::bn256::{Fq, Fr, G1Affine, G2Affine, G1, G2};
 use halo2_proofs::pairing::group::Group;
-use halo2_proofs::plonk::{create_proof, keygen_pk, keygen_vk};
-use halo2_proofs::poly::commitment::Params;
-use halo2_proofs::transcript::{Blake2bRead, Blake2bWrite, Challenge255};
 use halo2_proofs::{
     circuit::{Layouter, SimpleFloorPlanner},
     dev::MockProver,
     plonk::{Circuit, ConstraintSystem, Error},
 };
-use rand::rngs::OsRng;
 use rand::thread_rng;
-use rand_xorshift::XorShiftRng;
 use std::marker::PhantomData;
 use std::sync::Arc;
 
