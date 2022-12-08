@@ -138,7 +138,7 @@ impl<W: BaseExt, N: FieldExt> Context<W, N> {
             let t = self.fq2_mul(&a01, &b01);
             let t = self.fq2_sub(&t, &ab00);
             let t = self.fq2_sub(&t, &ab11);
-            let t = self.fq2_mul_by_nonresidue(&t);
+            let ab22 = self.fq2_mul_by_nonresidue(&ab22);
             self.fq2_add(&t, &ab22)
         };
 
@@ -388,9 +388,9 @@ impl<W: BaseExt, N: FieldExt> Context<W, N> {
         let o = self.fq2_add(c0, c3);
         let t2 = self.fq6_mul_by_01(&t2, &o, c4);
         let t2 = self.fq6_sub(&t2, &t0);
-        let x0 = self.fq6_sub(&t2, &t1);
+        let x1 = self.fq6_sub(&t2, &t1);
         let t1 = self.fq6_mul_by_nonresidue(&t1);
-        let x1 = self.fq6_add(&t0, &t1);
+        let x0 = self.fq6_add(&t0, &t1);
         (x0, x1)
     }
     pub fn fp4_square(
