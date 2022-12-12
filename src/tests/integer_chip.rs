@@ -4,7 +4,6 @@ use crate::circuit::range_chip::RangeChip;
 use crate::circuit::range_chip::RangeChipConfig;
 use crate::context::Context;
 use crate::context::Records;
-use crate::range_info::RangeInfo;
 use crate::tests::random_fq;
 use crate::utils::field_to_bn;
 use ark_std::{end_timer, start_timer};
@@ -55,7 +54,7 @@ impl<W: FieldExt, N: FieldExt> Circuit<N> for TestCircuit<W, N> {
         let base_chip = BaseChip::new(config.base_chip_config);
         let range_chip = RangeChip::<W, N>::new(config.range_chip_config);
 
-        range_chip.init_table(&mut layouter, &RangeInfo::<N>::new::<W>())?;
+        range_chip.init_table(&mut layouter)?;
 
         layouter.assign_region(
             || "base",
@@ -114,7 +113,7 @@ fn test_integer_chip_st() {
     let (g1, _) = ctx.int_div(&a, &zero);
     ctx.assert_true(&g1);
 
-    const K: u32 = 19;
+    const K: u32 = 20;
     let circuit = TestCircuit::<Fq, Fr> {
         records: Arc::try_unwrap(ctx.records).unwrap().into_inner().unwrap(),
         _phantom: PhantomData,
@@ -171,7 +170,7 @@ fn test_integer_chip_mt() {
 
     end_timer!(timer);
 
-    const K: u32 = 19;
+    const K: u32 = 20;
     let circuit = TestCircuit::<Fq, Fr> {
         records: Arc::try_unwrap(ctx.records).unwrap().into_inner().unwrap(),
         _phantom: PhantomData,

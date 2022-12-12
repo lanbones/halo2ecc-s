@@ -13,7 +13,7 @@ use crate::{
 
 pub trait IntegerChipOps<W: BaseExt, N: FieldExt> {
     fn base_chip(&self) -> &dyn BaseChipOps<N>;
-    fn range_chip(&self) -> &dyn RangeChipOps<N>;
+    fn range_chip(&self) -> &dyn RangeChipOps<W, N>;
     fn assign_w(&mut self, w: &BigUint) -> AssignedInteger<W, N>;
     fn assign_d(&mut self, v: &BigUint) -> ([AssignedValue<N>; LIMBS], AssignedValue<N>);
     fn conditionally_reduce(&mut self, a: AssignedInteger<W, N>) -> AssignedInteger<W, N>;
@@ -34,10 +34,7 @@ pub trait IntegerChipOps<W: BaseExt, N: FieldExt> {
         a: &AssignedInteger<W, N>,
         b: &AssignedInteger<W, N>,
     ) -> AssignedInteger<W, N>;
-    fn int_unsafe_invert(
-        &mut self,
-        x: &AssignedInteger<W, N>,
-    ) -> AssignedInteger<W, N>;
+    fn int_unsafe_invert(&mut self, x: &AssignedInteger<W, N>) -> AssignedInteger<W, N>;
     fn int_div(
         &mut self,
         a: &AssignedInteger<W, N>,
@@ -60,7 +57,7 @@ pub trait IntegerChipOps<W: BaseExt, N: FieldExt> {
     fn int_mul_small_constant(
         &mut self,
         a: &AssignedInteger<W, N>,
-        b: usize,
+        b: u64,
     ) -> AssignedInteger<W, N>;
     fn bisec_int(
         &mut self,
@@ -68,7 +65,6 @@ pub trait IntegerChipOps<W: BaseExt, N: FieldExt> {
         a: &AssignedInteger<W, N>,
         b: &AssignedInteger<W, N>,
     ) -> AssignedInteger<W, N>;
-    fn get_last_bit(&mut self, a: &AssignedInteger<W, N>) -> AssignedValue<N>;
     fn get_w(&self, a: &AssignedInteger<W, N>) -> W;
 }
 
@@ -202,7 +198,7 @@ impl<W: BaseExt, N: FieldExt> IntegerChipOps<W, N> for Context<W, N> {
         self
     }
 
-    fn range_chip(&self) -> &dyn RangeChipOps<N> {
+    fn range_chip(&self) -> &dyn RangeChipOps<W, N> {
         self
     }
 
@@ -210,12 +206,12 @@ impl<W: BaseExt, N: FieldExt> IntegerChipOps<W, N> for Context<W, N> {
         let info = self.info();
 
         let mut limbs = vec![];
-        for i in 0..LIMBS - 1 {
+        for i in 0..LIMBS as u64 - 1 {
             limbs.push(self.assign_nonleading_limb(&((w >> (i * LIMB_BITS)) & &info.limb_mask)));
         }
-        limbs.push(
-            self.assign_w_ceil_leading_limb(&(w >> ((LIMBS - 1) * LIMB_BITS) & &info.limb_mask)),
-        );
+        limbs.push(self.assign_w_ceil_leading_limb(
+            &(w >> ((LIMBS as u64 - 1) * LIMB_BITS) & &info.limb_mask),
+        ));
 
         let schemas = limbs.iter().zip(info.limb_coeffs);
         let native = self.sum_with_constant(schemas.collect(), None);
@@ -227,10 +223,12 @@ impl<W: BaseExt, N: FieldExt> IntegerChipOps<W, N> for Context<W, N> {
         let info = self.info();
 
         let mut limbs = vec![];
-        for i in 0..LIMBS - 1 {
+        for i in 0..LIMBS as u64 - 1 {
             limbs.push(self.assign_nonleading_limb(&((d >> (i * LIMB_BITS)) & &info.limb_mask)));
         }
-        limbs.push(self.assign_d_leading_limb(&(d >> ((LIMBS - 1) * LIMB_BITS) & &info.limb_mask)));
+        limbs.push(
+            self.assign_d_leading_limb(&(d >> ((LIMBS as u64 - 1) * LIMB_BITS) & &info.limb_mask)),
+        );
 
         let schemas = limbs.iter().zip(info.limb_coeffs);
         let native = self.sum_with_constant(schemas.collect(), None);
@@ -383,10 +381,7 @@ impl<W: BaseExt, N: FieldExt> IntegerChipOps<W, N> for Context<W, N> {
 
         rem
     }
-    fn int_unsafe_invert(
-        &mut self,
-        x: &AssignedInteger<W, N>,
-    ) -> AssignedInteger<W, N> {
+    fn int_unsafe_invert(&mut self, x: &AssignedInteger<W, N>) -> AssignedInteger<W, N> {
         //TODO: optimize
         let one = self.assign_int_constant(W::one());
         let (c, v) = self.int_div(&one, x);
@@ -481,7 +476,7 @@ impl<W: BaseExt, N: FieldExt> IntegerChipOps<W, N> for Context<W, N> {
 
         let native = self.assign_constant(bn_to_field(&(w % &info.n_modulus)));
 
-        AssignedInteger::new(limbs.try_into().unwrap(), native, 1usize)
+        AssignedInteger::new(limbs.try_into().unwrap(), native, 1)
     }
 
     fn assert_int_equal(&mut self, a: &AssignedInteger<W, N>, b: &AssignedInteger<W, N>) {
@@ -501,7 +496,7 @@ impl<W: BaseExt, N: FieldExt> IntegerChipOps<W, N> for Context<W, N> {
     fn int_mul_small_constant(
         &mut self,
         a: &AssignedInteger<W, N>,
-        b: usize,
+        b: u64,
     ) -> AssignedInteger<W, N> {
         assert!(b < OVERFLOW_THRESHOLD);
 
@@ -549,31 +544,8 @@ impl<W: BaseExt, N: FieldExt> IntegerChipOps<W, N> for Context<W, N> {
         AssignedInteger::new(
             limbs.try_into().unwrap(),
             native,
-            usize::max(a.times, b.times),
+            u64::max(a.times, b.times),
         )
-    }
-
-    fn get_last_bit(&mut self, a: &AssignedInteger<W, N>) -> AssignedValue<N> {
-        let one = N::one();
-
-        let v = field_to_bn(&a.limbs_le[0].val);
-        let bit = if v.is_odd() { N::one() } else { N::zero() };
-        let d = v >> 1;
-
-        let d = {
-            let range_chip: &mut dyn RangeChipOps<N> = self;
-            range_chip.assign_nonleading_limb(&d)
-        };
-
-        let (_, bit) = self.one_line_with_last(
-            vec![pair!(&d, N::from(2u64)), pair!(&a.limbs_le[0], -one)],
-            pair!(bit, one),
-            None,
-            (vec![], None),
-        );
-
-        self.assert_bit(&bit);
-        bit
     }
 
     fn get_w(&self, a: &AssignedInteger<W, N>) -> W {

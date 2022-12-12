@@ -227,7 +227,8 @@ impl<C: CurveAffine> EccChipAlgorithms<C> for NativeScalarEccContext<C> {
         let point_candidates: Vec<Vec<AssignedPointWithCurvature<_, _>>> = points
             .iter()
             .map(|a| {
-                let mut candidates = vec![identity.clone(), self.to_point_with_curvature(a.clone())];
+                let mut candidates =
+                    vec![identity.clone(), self.to_point_with_curvature(a.clone())];
                 for i in 2..(1 << WINDOW_SIZE) {
                     let ai = self.ecc_add(&candidates[i - 1], a);
                     let ai = self.to_point_with_curvature(ai);
@@ -583,8 +584,8 @@ impl<C: CurveAffine> EccChipOps<C> for NativeScalarEccContext<C> {
     ) -> AssignedPointWithCurvature<C, C::ScalarExt> {
         // 3 * x ^ 2 / 2 * y
         let x_square = self.0.int_square(&a.x);
-        let numerator = self.0.int_mul_small_constant(&x_square, 3usize);
-        let denominator = self.0.int_mul_small_constant(&a.y, 2usize);
+        let numerator = self.0.int_mul_small_constant(&x_square, 3);
+        let denominator = self.0.int_mul_small_constant(&a.y, 2);
 
         let (z, v) = self.0.int_div(&numerator, &denominator);
         AssignedPointWithCurvature::new(a.x, a.y, a.z, AssignedCurvature(v, z))

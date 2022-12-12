@@ -5,7 +5,6 @@ use crate::circuit::range_chip::RangeChip;
 use crate::circuit::range_chip::RangeChipConfig;
 use crate::context::Records;
 use crate::context::{Context, NativeScalarEccContext};
-use crate::range_info::RangeInfo;
 use ark_std::{end_timer, start_timer};
 use halo2_proofs::arithmetic::{CurveAffine, FieldExt};
 use halo2_proofs::pairing::bn256::{Fq, Fr, G1Affine, G2Affine, G1, G2};
@@ -56,7 +55,7 @@ impl<W: FieldExt, N: FieldExt> Circuit<N> for TestCircuit<W, N> {
         let base_chip = BaseChip::new(config.base_chip_config);
         let range_chip = RangeChip::<W, N>::new(config.range_chip_config);
 
-        range_chip.init_table(&mut layouter, &RangeInfo::<N>::new::<W>())?;
+        range_chip.init_table(&mut layouter)?;
 
         layouter.assign_region(
             || "base",

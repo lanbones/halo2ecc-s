@@ -4,7 +4,7 @@ use crate::{
         base_chip::{BaseChip, FIXED_COLUMNS, MUL_COLUMNS, VAR_COLUMNS},
         range_chip::RangeChip,
     },
-    range_info::{RangeClass, RangeInfo, MAX_CHUNKS},
+    range_info::{RangeInfo, COMMON_RANGE_BITS, MAX_CHUNKS},
 };
 use halo2_proofs::{
     arithmetic::{BaseExt, CurveAffine, FieldExt},
@@ -354,27 +354,29 @@ impl<N: FieldExt> Records<N> {
         self.base_adv_record[offset][i].0 = Some(base.value());
     }
 
-    pub fn assign_single_range_value(
-        &mut self,
-        offset: usize,
-        v: N,
-        leading_class: RangeClass,
-    ) -> AssignedValue<N> {
-        const EXTEND_SIZE: usize = 16;
+    fn ensure_range_record_size(&mut self, offset: usize) {
+        const EXTEND_SIZE: usize = 1024;
 
-        let end_offset = offset + 1 + MAX_CHUNKS;
-
-        if end_offset >= self.range_adv_record.len() {
-            let to_len = (end_offset + EXTEND_SIZE) & !(EXTEND_SIZE - 1);
+        if offset >= self.range_adv_record.len() {
+            let to_len = (offset + EXTEND_SIZE) & !(EXTEND_SIZE - 1);
             self.range_adv_record.resize(to_len, (None, false));
             self.range_fix_record.resize(to_len, [None; 2]);
         }
 
-        if end_offset >= self.range_height {
-            self.range_height = end_offset + 1;
+        if offset >= self.range_height {
+            self.range_height = offset + 1;
         }
+    }
 
-        self.range_fix_record[offset][1] = Some(N::from(leading_class as u64));
+    pub fn assign_single_range_value(
+        &mut self,
+        offset: usize,
+        v: N,
+        leading_bits: u64,
+    ) -> AssignedValue<N> {
+        self.ensure_range_record_size(offset + 1);
+
+        self.range_fix_record[offset][1] = Some(N::from(leading_bits));
         self.range_adv_record[offset].0 = Some(v);
 
         AssignedValue::new(Chip::RangeChip, 0, offset, v)
@@ -384,38 +386,24 @@ impl<N: FieldExt> Records<N> {
         &mut self,
         offset: usize,
         (v, chunks): (N, Vec<N>),
-        leading_class: RangeClass,
+        leading_bits: u64,
     ) -> AssignedValue<N> {
-        const EXTEND_SIZE: usize = 16;
-
-        let end_offset = offset + 1 + MAX_CHUNKS;
-
-        if end_offset >= self.range_adv_record.len() {
-            let to_len = (end_offset + EXTEND_SIZE) & !(EXTEND_SIZE - 1);
-            self.range_adv_record.resize(to_len, (None, false));
-            self.range_fix_record.resize(to_len, [None; 2]);
-        }
-
-        if end_offset >= self.range_height {
-            self.range_height = end_offset + 1;
-        }
+        self.ensure_range_record_size(offset + 1 + MAX_CHUNKS as usize);
 
         self.range_fix_record[offset][0] = Some(N::one());
         self.range_adv_record[offset].0 = Some(v);
 
         // a row placeholder
-        self.range_fix_record[offset + MAX_CHUNKS][0] = Some(N::zero());
+        self.range_fix_record[offset + MAX_CHUNKS as usize][0] = Some(N::zero());
 
         for i in 0..chunks.len() - 1 {
-            self.range_fix_record[offset + 1 + i][1] = Some(N::from(RangeClass::Common as u64));
+            self.range_fix_record[offset + 1 + i][1] = Some(N::from(COMMON_RANGE_BITS as u64));
         }
-        self.range_fix_record[offset + 1 + chunks.len() - 1][1] =
-            Some(N::from(leading_class as u64));
+        self.range_fix_record[offset + chunks.len()][1] = Some(N::from(leading_bits));
 
         for i in 0..chunks.len() {
             self.range_adv_record[offset + 1 + i].0 = Some(chunks[i]);
         }
-
         AssignedValue::new(Chip::RangeChip, 0, offset, v)
     }
 }

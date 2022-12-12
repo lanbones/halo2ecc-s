@@ -3,7 +3,7 @@ use crate::circuit::range_chip::RangeChipConfig;
 use crate::circuit::range_chip::{RangeChip, RangeChipOps};
 use crate::context::Context;
 use crate::context::Records;
-use crate::range_info::{RangeInfo, MAX_CHUNKS, LIMBS, LIMB_BITS};
+use crate::range_info::{LIMBS, LIMB_BITS, MAX_CHUNKS};
 use crate::tests::random_fq;
 use crate::utils::field_to_bn;
 use ark_std::{end_timer, start_timer};
@@ -56,7 +56,7 @@ impl<W: FieldExt, N: FieldExt> Circuit<N> for TestCircuit<W, N> {
         let base_chip = BaseChip::new(config.base_chip_config);
         let range_chip = RangeChip::<W, N>::new(config.range_chip_config);
 
-        range_chip.init_table(&mut layouter, &RangeInfo::<N>::new::<W>())?;
+        range_chip.init_table(&mut layouter)?;
 
         layouter.assign_region(
             || "base",
@@ -92,12 +92,12 @@ fn test_range_chip() {
         let step = c / n;
         let start = i * step * 2;
         let mut ctx = ctx.clone();
-        *ctx.range_offset = start;
+        *ctx.range_offset = start as usize;
         let common = &a & ((BigUint::from(1u64) << LIMB_BITS) - 1u64);
-        let a_leading = &a >> ((LIMBS - 1) * LIMB_BITS);
-        let b_leading = &b >> ((LIMBS - 1) * LIMB_BITS);
-        let d_leading = &d >> ((LIMBS - 1) * LIMB_BITS);
-        let r_leading = &r >> ((LIMBS - 1) * LIMB_BITS);
+        let a_leading = &a >> ((LIMBS as u64 - 1) * LIMB_BITS);
+        let b_leading = &b >> ((LIMBS as u64 - 1) * LIMB_BITS);
+        let d_leading = &d >> ((LIMBS as u64 - 1) * LIMB_BITS);
+        let r_leading = &r >> ((LIMBS as u64 - 1) * LIMB_BITS);
         let t = std::thread::spawn(move || {
             for _ in 0..step / (1 + MAX_CHUNKS) / 5 {
                 ctx.assign_nonleading_limb(&common);
@@ -106,7 +106,7 @@ fn test_range_chip() {
                 ctx.assign_w_ceil_leading_limb(&r_leading);
                 ctx.assign_d_leading_limb(&d_leading);
             }
-            assert!(*ctx.range_offset <= start + step);
+            assert!(*ctx.range_offset as u64 <= start + step);
         });
         threads.push(t);
     }
@@ -117,7 +117,7 @@ fn test_range_chip() {
 
     end_timer!(timer);
 
-    const K: u32 = 19;
+    const K: u32 = 20;
     let circuit = TestCircuit::<Fq, Fr> {
         records: Arc::try_unwrap(ctx.records).unwrap().into_inner().unwrap(),
         _phantom: PhantomData,

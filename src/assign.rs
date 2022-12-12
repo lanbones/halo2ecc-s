@@ -31,7 +31,7 @@ pub struct AssignedValue<N: FieldExt> {
 pub struct AssignedInteger<W: BaseExt, N: FieldExt> {
     pub limbs_le: Vec<AssignedValue<N>>,
     pub native: AssignedValue<N>,
-    pub times: usize,
+    pub times: u64,
     _mark: PhantomData<W>,
 }
 
@@ -64,7 +64,7 @@ impl<C: CurveAffine, N: FieldExt> AssignedPointWithCurvature<C, N> {
 }
 
 impl<W: BaseExt, N: FieldExt> AssignedInteger<W, N> {
-    pub fn new(limbs_le: Vec<AssignedValue<N>>, native: AssignedValue<N>, times: usize) -> Self {
+    pub fn new(limbs_le: Vec<AssignedValue<N>>, native: AssignedValue<N>, times: u64) -> Self {
         Self {
             limbs_le,
             native,

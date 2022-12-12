@@ -89,16 +89,8 @@ impl<W: BaseExt, N: FieldExt> RangeChip<W, N> {
         }
     }
 
-    pub fn init_table(
-        &self,
-        layouter: &mut impl Layouter<N>,
-        range_info: &RangeInfo<N>,
-    ) -> Result<(), Error> {
+    pub fn init_table(&self, layouter: &mut impl Layouter<N>) -> Result<(), Error> {
         let class_shift = bn_to_field::<N>(&(BigUint::from(1u64) << CLASS_SHIFT_BITS));
-
-        assert!(COMMON_RANGE_BITS >= range_info.d_leading_bits);
-        assert!(COMMON_RANGE_BITS >= range_info.w_ceil_leading_bits);
-        assert!(COMMON_RANGE_BITS >= range_info.n_floor_leading_bits);
 
         layouter.assign_table(
             || "common range table",
@@ -121,33 +113,18 @@ impl<W: BaseExt, N: FieldExt> RangeChip<W, N> {
             |mut table| {
                 let mut offset = 0;
 
-                table.assign_cell(
-                    || "range table",
-                    self.config.tag_range_table_column,
-                    offset,
-                    || Ok(N::from(0u64)),
-                )?;
-                offset += 1;
-
-                macro_rules! assign_range {
-                    ($bits:expr, $class:expr) => {
-                        let prefix = N::from($class as u64) * &class_shift;
-                        for i in 0..1 << $bits {
-                            table.assign_cell(
-                                || "range table",
-                                self.config.tag_range_table_column,
-                                offset,
-                                || Ok(prefix + N::from(i as u64)),
-                            )?;
-                            offset += 1;
-                        }
-                    };
+                for i in 0..COMMON_RANGE_BITS + 1 {
+                    let prefix = N::from(i) * &class_shift;
+                    for j in 0..1 << i {
+                        table.assign_cell(
+                            || "range table",
+                            self.config.tag_range_table_column,
+                            offset,
+                            || Ok(prefix + N::from(j)),
+                        )?;
+                        offset += 1;
+                    }
                 }
-
-                assign_range!(COMMON_RANGE_BITS, RangeClass::Common);
-                assign_range!(range_info.d_leading_bits, RangeClass::DLeading);
-                assign_range!(range_info.w_ceil_leading_bits, RangeClass::WCeilLeading);
-                assign_range!(range_info.n_floor_leading_bits, RangeClass::NFloorLeading);
 
                 Ok(())
             },
@@ -157,7 +134,8 @@ impl<W: BaseExt, N: FieldExt> RangeChip<W, N> {
     }
 }
 
-pub trait RangeChipOps<N: FieldExt> {
+// A range info that implements limb assignment for W on N
+pub trait RangeChipOps<W: BaseExt, N: FieldExt> {
     fn info(&self) -> Arc<RangeInfo<N>>;
     fn assign_common(&mut self, bn: &BigUint) -> AssignedValue<N>;
     fn assign_nonleading_limb(&mut self, bn: &BigUint) -> AssignedValue<N>;
@@ -166,7 +144,7 @@ pub trait RangeChipOps<N: FieldExt> {
     fn assign_d_leading_limb(&mut self, bn: &BigUint) -> AssignedValue<N>;
 }
 
-fn decompose_bn<N: FieldExt>(bn: &BigUint, n: usize, mask: &BigUint) -> (N, Vec<N>) {
+fn decompose_bn<N: FieldExt>(bn: &BigUint, n: u64, mask: &BigUint) -> (N, Vec<N>) {
     let v = bn_to_field::<N>(bn);
     let mut chunks = vec![];
 
@@ -178,7 +156,7 @@ fn decompose_bn<N: FieldExt>(bn: &BigUint, n: usize, mask: &BigUint) -> (N, Vec<
     (v, chunks)
 }
 
-impl<W: BaseExt, N: FieldExt> RangeChipOps<N> for Context<W, N> {
+impl<W: BaseExt, N: FieldExt> RangeChipOps<W, N> for Context<W, N> {
     fn info(&self) -> Arc<RangeInfo<N>> {
         self.range_info.clone().unwrap()
     }
@@ -188,7 +166,7 @@ impl<W: BaseExt, N: FieldExt> RangeChipOps<N> for Context<W, N> {
         let res = records.assign_single_range_value(
             *self.range_offset,
             bn_to_field(bn),
-            RangeClass::Common,
+            COMMON_RANGE_BITS,
         );
         *self.range_offset += 1;
         res
@@ -197,32 +175,35 @@ impl<W: BaseExt, N: FieldExt> RangeChipOps<N> for Context<W, N> {
     fn assign_nonleading_limb(&mut self, bn: &BigUint) -> AssignedValue<N> {
         let v = decompose_bn(bn, MAX_CHUNKS, &self.info().common_range_mask);
         let mut records = self.records.lock().unwrap();
-        let res = records.assign_range_value(*self.range_offset, v, RangeClass::Common);
-        *self.range_offset += MAX_CHUNKS + 1;
+        let res = records.assign_range_value(*self.range_offset, v, COMMON_RANGE_BITS);
+        *self.range_offset += MAX_CHUNKS as usize + 1;
         res
     }
 
     fn assign_w_ceil_leading_limb(&mut self, bn: &BigUint) -> AssignedValue<N> {
-        let v = decompose_bn(bn, W_CEIL_LEADING_CHUNKS, &self.info().common_range_mask);
+        let info = self.info();
+        let v = decompose_bn(bn, W_CEIL_LEADING_CHUNKS, &info.common_range_mask);
         let mut records = self.records.lock().unwrap();
-        let res = records.assign_range_value(*self.range_offset, v, RangeClass::WCeilLeading);
-        *self.range_offset += MAX_CHUNKS + 1;
+        let res = records.assign_range_value(*self.range_offset, v, info.w_ceil_leading_bits);
+        *self.range_offset += MAX_CHUNKS as usize + 1;
         res
     }
 
     fn assign_n_floor_leading_limb(&mut self, bn: &BigUint) -> AssignedValue<N> {
-        let v = decompose_bn(bn, N_FLOOR_LEADING_CHUNKS, &self.info().common_range_mask);
+        let info = self.info();
+        let v = decompose_bn(bn, N_FLOOR_LEADING_CHUNKS, &info.common_range_mask);
         let mut records = self.records.lock().unwrap();
-        let res = records.assign_range_value(*self.range_offset, v, RangeClass::NFloorLeading);
-        *self.range_offset += MAX_CHUNKS + 1;
+        let res = records.assign_range_value(*self.range_offset, v, info.n_floor_leading_bits);
+        *self.range_offset += MAX_CHUNKS as usize + 1;
         res
     }
 
     fn assign_d_leading_limb(&mut self, bn: &BigUint) -> AssignedValue<N> {
-        let v = decompose_bn(bn, D_LEADING_CHUNKS, &self.info().common_range_mask);
+        let info = self.info();
+        let v = decompose_bn(bn, D_LEADING_CHUNKS, &info.common_range_mask);
         let mut records = self.records.lock().unwrap();
-        let res = records.assign_range_value(*self.range_offset, v, RangeClass::DLeading);
-        *self.range_offset += MAX_CHUNKS + 1;
+        let res = records.assign_range_value(*self.range_offset, v, info.d_leading_bits);
+        *self.range_offset += MAX_CHUNKS as usize + 1;
         res
     }
 }
