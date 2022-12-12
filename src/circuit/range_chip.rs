@@ -9,6 +9,10 @@ use halo2_proofs::{
 use num_bigint::BigUint;
 use std::{marker::PhantomData, sync::Arc, vec};
 
+pub const MAX_CHUNKS: u64 = 5;
+pub const MAX_BITS: u64 = 18;
+pub const COMMON_RANGE_BITS: u64 = MAX_BITS as u64;
+
 const CLASS_SHIFT_BITS: usize = 128;
 
 #[derive(Clone, Debug)]
@@ -136,7 +140,7 @@ impl<W: BaseExt, N: FieldExt> RangeChip<W, N> {
 
 // A range info that implements limb assignment for W on N
 pub trait RangeChipOps<W: BaseExt, N: FieldExt> {
-    fn info(&self) -> Arc<RangeInfo<N>>;
+    fn info(&self) -> Arc<RangeInfo<W, N>>;
     fn assign_common(&mut self, bn: &BigUint) -> AssignedValue<N>;
     fn assign_nonleading_limb(&mut self, bn: &BigUint) -> AssignedValue<N>;
     fn assign_w_ceil_leading_limb(&mut self, bn: &BigUint) -> AssignedValue<N>;
@@ -157,7 +161,7 @@ fn decompose_bn<N: FieldExt>(bn: &BigUint, n: u64, mask: &BigUint) -> (N, Vec<N>
 }
 
 impl<W: BaseExt, N: FieldExt> RangeChipOps<W, N> for Context<W, N> {
-    fn info(&self) -> Arc<RangeInfo<N>> {
+    fn info(&self) -> Arc<RangeInfo<W, N>> {
         self.range_info.clone().unwrap()
     }
 
@@ -182,7 +186,11 @@ impl<W: BaseExt, N: FieldExt> RangeChipOps<W, N> for Context<W, N> {
 
     fn assign_w_ceil_leading_limb(&mut self, bn: &BigUint) -> AssignedValue<N> {
         let info = self.info();
-        let v = decompose_bn(bn, W_CEIL_LEADING_CHUNKS, &info.common_range_mask);
+        let v = decompose_bn(
+            bn,
+            self.info().w_ceil_leading_chunks,
+            &info.common_range_mask,
+        );
         let mut records = self.records.lock().unwrap();
         let res = records.assign_range_value(*self.range_offset, v, info.w_ceil_leading_bits);
         *self.range_offset += MAX_CHUNKS as usize + 1;
@@ -191,7 +199,11 @@ impl<W: BaseExt, N: FieldExt> RangeChipOps<W, N> for Context<W, N> {
 
     fn assign_n_floor_leading_limb(&mut self, bn: &BigUint) -> AssignedValue<N> {
         let info = self.info();
-        let v = decompose_bn(bn, N_FLOOR_LEADING_CHUNKS, &info.common_range_mask);
+        let v = decompose_bn(
+            bn,
+            self.info().n_floor_leading_chunks,
+            &info.common_range_mask,
+        );
         let mut records = self.records.lock().unwrap();
         let res = records.assign_range_value(*self.range_offset, v, info.n_floor_leading_bits);
         *self.range_offset += MAX_CHUNKS as usize + 1;
@@ -200,7 +212,7 @@ impl<W: BaseExt, N: FieldExt> RangeChipOps<W, N> for Context<W, N> {
 
     fn assign_d_leading_limb(&mut self, bn: &BigUint) -> AssignedValue<N> {
         let info = self.info();
-        let v = decompose_bn(bn, D_LEADING_CHUNKS, &info.common_range_mask);
+        let v = decompose_bn(bn, self.info().d_leading_chunks, &info.common_range_mask);
         let mut records = self.records.lock().unwrap();
         let res = records.assign_range_value(*self.range_offset, v, info.d_leading_bits);
         *self.range_offset += MAX_CHUNKS as usize + 1;

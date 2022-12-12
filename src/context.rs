@@ -2,9 +2,9 @@ use crate::{
     assign::{AssignedValue, Cell, Chip, ValueSchema},
     circuit::{
         base_chip::{BaseChip, FIXED_COLUMNS, MUL_COLUMNS, VAR_COLUMNS},
-        range_chip::RangeChip,
+        range_chip::{RangeChip, COMMON_RANGE_BITS, MAX_CHUNKS},
     },
-    range_info::{RangeInfo, COMMON_RANGE_BITS, MAX_CHUNKS},
+    range_info::RangeInfo,
 };
 use halo2_proofs::{
     arithmetic::{BaseExt, CurveAffine, FieldExt},
@@ -20,7 +20,7 @@ pub struct Context<W: BaseExt, N: FieldExt> {
     pub records: Arc<Mutex<Records<N>>>,
     pub base_offset: Box<usize>,
     pub range_offset: Box<usize>,
-    pub range_info: Option<Arc<RangeInfo<N>>>,
+    pub range_info: Option<Arc<RangeInfo<W, N>>>,
     _mark: PhantomData<W>,
 }
 
@@ -51,11 +51,15 @@ impl<W: BaseExt, N: FieldExt> Context<W, N> {
     }
 
     pub fn new_with_range_info() -> Self {
+        const OVERFLOW_BITS: u64 = 6;
         Self {
             records: Arc::new(Mutex::new(Records::default())),
             base_offset: Box::new(0),
             range_offset: Box::new(0),
-            range_info: Some(Arc::new(RangeInfo::<N>::new::<W>())),
+            range_info: Some(Arc::new(RangeInfo::<W, N>::new(
+                COMMON_RANGE_BITS,
+                OVERFLOW_BITS,
+            ))),
             _mark: PhantomData,
         }
     }
@@ -388,6 +392,7 @@ impl<N: FieldExt> Records<N> {
         (v, chunks): (N, Vec<N>),
         leading_bits: u64,
     ) -> AssignedValue<N> {
+        assert!(chunks.len() as u64 <= MAX_CHUNKS);
         self.ensure_range_record_size(offset + 1 + MAX_CHUNKS as usize);
 
         self.range_fix_record[offset][0] = Some(N::one());

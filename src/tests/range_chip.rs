@@ -1,9 +1,8 @@
 use crate::circuit::base_chip::{BaseChip, BaseChipConfig};
-use crate::circuit::range_chip::RangeChipConfig;
 use crate::circuit::range_chip::{RangeChip, RangeChipOps};
+use crate::circuit::range_chip::{RangeChipConfig, MAX_CHUNKS};
 use crate::context::Context;
 use crate::context::Records;
-use crate::range_info::{LIMBS, LIMB_BITS, MAX_CHUNKS};
 use crate::tests::random_fq;
 use crate::utils::field_to_bn;
 use ark_std::{end_timer, start_timer};
@@ -87,17 +86,18 @@ fn test_range_chip() {
     let n = 10;
 
     let mut threads = vec![];
-
+    let limbs = ctx.info().limbs;
+    let non_leading_bits = (limbs - 1) * ctx.info().limb_bits;
     for i in 0..n {
         let step = c / n;
         let start = i * step * 2;
         let mut ctx = ctx.clone();
         *ctx.range_offset = start as usize;
-        let common = &a & ((BigUint::from(1u64) << LIMB_BITS) - 1u64);
-        let a_leading = &a >> ((LIMBS as u64 - 1) * LIMB_BITS);
-        let b_leading = &b >> ((LIMBS as u64 - 1) * LIMB_BITS);
-        let d_leading = &d >> ((LIMBS as u64 - 1) * LIMB_BITS);
-        let r_leading = &r >> ((LIMBS as u64 - 1) * LIMB_BITS);
+        let common = &a & ((BigUint::from(1u64) << ctx.info().limbs) - 1u64);
+        let a_leading = &a >> non_leading_bits;
+        let b_leading = &b >> non_leading_bits;
+        let d_leading = &d >> non_leading_bits;
+        let r_leading = &r >> non_leading_bits;
         let t = std::thread::spawn(move || {
             for _ in 0..step / (1 + MAX_CHUNKS) / 5 {
                 ctx.assign_nonleading_limb(&common);

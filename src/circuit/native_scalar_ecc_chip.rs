@@ -8,11 +8,11 @@ use num_integer::Integer;
 
 use super::base_chip::BaseChipOps;
 use super::integer_chip::IntegerChipOps;
+use super::range_chip::RangeChipOps;
 use crate::assign::{AssignedCondition, AssignedCurvature, AssignedPoint};
 use crate::assign::{AssignedPointWithCurvature, AssignedValue};
 use crate::context::NativeScalarEccContext;
 use crate::pair;
-use crate::range_info::LIMB_BITS;
 use crate::utils::{bn_to_field, field_to_bn};
 
 pub trait EccChipOps<C: CurveAffine> {
@@ -596,7 +596,7 @@ impl<C: CurveAffine> EccChipOps<C> for NativeScalarEccContext<C> {
         p: &AssignedPoint<C, C::ScalarExt>,
     ) -> Vec<AssignedValue<C::ScalarExt>> {
         let p = self.ecc_reduce(&p);
-        let shift = bn_to_field(&(BigUint::from(1u64) << LIMB_BITS));
+        let shift = bn_to_field(&(BigUint::from(1u64) << self.0.info().limb_bits));
         let s0 = self.0.sum_with_constant(
             vec![
                 (&p.x.limbs_le[0], C::ScalarExt::one()),

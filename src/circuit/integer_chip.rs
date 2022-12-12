@@ -7,7 +7,6 @@ use crate::{
     assign::{AssignedCondition, AssignedInteger, AssignedValue},
     context::Context,
     pair,
-    range_info::{LIMBS, LIMB_BITS, OVERFLOW_LIMIT, OVERFLOW_THRESHOLD},
     utils::{bn_to_field, field_to_bn},
 };
 
@@ -15,7 +14,7 @@ pub trait IntegerChipOps<W: BaseExt, N: FieldExt> {
     fn base_chip(&self) -> &dyn BaseChipOps<N>;
     fn range_chip(&self) -> &dyn RangeChipOps<W, N>;
     fn assign_w(&mut self, w: &BigUint) -> AssignedInteger<W, N>;
-    fn assign_d(&mut self, v: &BigUint) -> ([AssignedValue<N>; LIMBS], AssignedValue<N>);
+    fn assign_d(&mut self, v: &BigUint) -> (Vec<AssignedValue<N>>, AssignedValue<N>);
     fn conditionally_reduce(&mut self, a: AssignedInteger<W, N>) -> AssignedInteger<W, N>;
     fn reduce(&mut self, a: &AssignedInteger<W, N>) -> AssignedInteger<W, N>;
     fn int_add(
@@ -73,18 +72,18 @@ impl<W: BaseExt, N: FieldExt> Context<W, N> {
         &mut self,
         a: &AssignedInteger<W, N>,
         b: &AssignedInteger<W, N>,
-        d: &[AssignedValue<N>; LIMBS],
+        d: &Vec<AssignedValue<N>>,
         rem: &AssignedInteger<W, N>,
     ) {
-        assert!(a.times < OVERFLOW_LIMIT);
-        assert!(b.times < OVERFLOW_LIMIT);
-        assert!(rem.times < OVERFLOW_LIMIT);
+        assert!(a.times < self.info().overflow_limit);
+        assert!(b.times < self.info().overflow_limit);
+        assert!(rem.times < self.info().overflow_limit);
 
         let info = self.info();
         let one = N::one();
 
         let mut limbs = vec![];
-        for pos in 0..LIMBS {
+        for pos in 0..self.info().limbs as usize {
             // e.g. l0 = a0 * b0 - d0 * w0
             // e.g. l1 = a1 * b0 + a0 * b1 - d1 * w0 - d0 * w1
             // ...
@@ -104,7 +103,7 @@ impl<W: BaseExt, N: FieldExt> Context<W, N> {
             limbs.push(l);
         }
 
-        // 4 LIMBS can reduce loop by merging 2 limbs check.
+        // 4 self.info().limbs can reduce loop by merging 2 limbs check.
 
         // check sum limb[0]
         let u = self.sum_with_constant(
@@ -128,7 +127,7 @@ impl<W: BaseExt, N: FieldExt> Context<W, N> {
         );
 
         // check sum limb[1..] with carry
-        for i in 1..LIMBS {
+        for i in 1..self.info().limbs as usize {
             let u = self.sum_with_constant(
                 vec![(&limbs[i], one), (&rem.limbs_le[i], -one)],
                 Some(info.limb_modulus_n - one),
@@ -185,9 +184,9 @@ impl<W: BaseExt, N: FieldExt> Context<W, N> {
 
     fn get_w_bn(&self, a: &AssignedInteger<W, N>) -> BigUint {
         let mut res = BigUint::from(0u64);
-        for i in 0..LIMBS {
-            res = res << LIMB_BITS;
-            res = res + field_to_bn(&a.limbs_le[LIMBS - i - 1].val)
+        for i in (0..self.info().limbs as usize).rev() {
+            res = res << self.info().limb_bits;
+            res = res + field_to_bn(&a.limbs_le[i].val)
         }
         res
     }
@@ -206,31 +205,39 @@ impl<W: BaseExt, N: FieldExt> IntegerChipOps<W, N> for Context<W, N> {
         let info = self.info();
 
         let mut limbs = vec![];
-        for i in 0..LIMBS as u64 - 1 {
-            limbs.push(self.assign_nonleading_limb(&((w >> (i * LIMB_BITS)) & &info.limb_mask)));
+        for i in 0..self.info().limbs as u64 - 1 {
+            limbs.push(
+                self.assign_nonleading_limb(
+                    &((w >> (i * self.info().limb_bits)) & &info.limb_mask),
+                ),
+            );
         }
         limbs.push(self.assign_w_ceil_leading_limb(
-            &(w >> ((LIMBS as u64 - 1) * LIMB_BITS) & &info.limb_mask),
+            &(w >> ((self.info().limbs as u64 - 1) * self.info().limb_bits) & &info.limb_mask),
         ));
 
-        let schemas = limbs.iter().zip(info.limb_coeffs);
+        let schemas = limbs.iter().zip(info.limb_coeffs.clone());
         let native = self.sum_with_constant(schemas.collect(), None);
 
         AssignedInteger::new(limbs.try_into().unwrap(), native, 1)
     }
 
-    fn assign_d(&mut self, d: &BigUint) -> ([AssignedValue<N>; LIMBS], AssignedValue<N>) {
+    fn assign_d(&mut self, d: &BigUint) -> (Vec<AssignedValue<N>>, AssignedValue<N>) {
         let info = self.info();
 
         let mut limbs = vec![];
-        for i in 0..LIMBS as u64 - 1 {
-            limbs.push(self.assign_nonleading_limb(&((d >> (i * LIMB_BITS)) & &info.limb_mask)));
+        for i in 0..self.info().limbs as u64 - 1 {
+            limbs.push(
+                self.assign_nonleading_limb(
+                    &((d >> (i * self.info().limb_bits)) & &info.limb_mask),
+                ),
+            );
         }
-        limbs.push(
-            self.assign_d_leading_limb(&(d >> ((LIMBS as u64 - 1) * LIMB_BITS) & &info.limb_mask)),
-        );
+        limbs.push(self.assign_d_leading_limb(
+            &(d >> ((self.info().limbs as u64 - 1) * self.info().limb_bits) & &info.limb_mask),
+        ));
 
-        let schemas = limbs.iter().zip(info.limb_coeffs);
+        let schemas = limbs.iter().zip(info.limb_coeffs.clone());
         let native = self.sum_with_constant(schemas.collect(), None);
         (limbs.try_into().unwrap(), native)
     }
@@ -240,7 +247,7 @@ impl<W: BaseExt, N: FieldExt> IntegerChipOps<W, N> for Context<W, N> {
             return a.clone();
         }
 
-        assert!(a.times < OVERFLOW_LIMIT);
+        assert!(a.times < self.info().overflow_limit);
 
         let info = self.info();
         let one = N::one();
@@ -249,14 +256,14 @@ impl<W: BaseExt, N: FieldExt> IntegerChipOps<W, N> for Context<W, N> {
         let a_bn = self.get_w_bn(&a);
         let (d, rem) = a_bn.div_rem(&info.w_modulus);
 
-        // OVERFLOW_LIMIT * limb_modulus > a.times * limb_modulus > a[0]
-        // u = d * w[0] + rem[0] + OVERFLOW_LIMIT * limb_modulus - a[0]
-        //   < common * limb_modulus + limb_modulus + OVERFLOW_LIMIT * limb_modulus
+        // self.info().overflow_limit * limb_modulus > a.times * limb_modulus > a[0]
+        // u = d * w[0] + rem[0] + self.info().overflow_limit * limb_modulus - a[0]
+        //   < common * limb_modulus + limb_modulus + self.info().overflow_limit * limb_modulus
         // v = u / limbs < common
-        //   < common + 1 + OVERFLOW_LIMIT
+        //   < common + 1 + self.info().overflow_limit
         let u = &d * &info.w_modulus_limbs_le_bn[0]
             + &info.bn_to_limb_le(&rem)[0]
-            + &info.limb_modulus * OVERFLOW_LIMIT
+            + &info.limb_modulus * self.info().overflow_limit
             - field_to_bn(&a.limbs_le[0].val);
 
         let (v, v_rem) = u.div_rem(&info.limb_modulus);
@@ -282,7 +289,9 @@ impl<W: BaseExt, N: FieldExt> IntegerChipOps<W, N> for Context<W, N> {
                 pair!(&a.limbs_le[0], -one),
             ],
             pair!(&v, -bn_to_field::<N>(&info.limb_modulus)),
-            Some(bn_to_field(&(&info.limb_modulus * OVERFLOW_LIMIT))),
+            Some(bn_to_field(
+                &(&info.limb_modulus * self.info().overflow_limit),
+            )),
             (vec![], None),
         );
 
@@ -290,7 +299,8 @@ impl<W: BaseExt, N: FieldExt> IntegerChipOps<W, N> for Context<W, N> {
     }
 
     fn conditionally_reduce(&mut self, a: AssignedInteger<W, N>) -> AssignedInteger<W, N> {
-        if a.times > OVERFLOW_THRESHOLD {
+        let threshold = 1 << (self.info().overflow_bits - 2);
+        if a.times > threshold {
             self.reduce(&a)
         } else {
             a
@@ -305,12 +315,12 @@ impl<W: BaseExt, N: FieldExt> IntegerChipOps<W, N> for Context<W, N> {
         let info = self.info();
         let mut limbs = vec![];
 
-        for i in 0..LIMBS {
+        for i in 0..self.info().limbs as usize {
             let value = self.add(&a.limbs_le[i], &b.limbs_le[i]);
             limbs.push(value)
         }
 
-        let schemas = limbs.iter().zip(info.limb_coeffs);
+        let schemas = limbs.iter().zip(info.limb_coeffs.clone());
         let native = self.sum_with_constant(schemas.collect(), None);
 
         let res = AssignedInteger::new(limbs.try_into().unwrap(), native, a.times + b.times);
@@ -329,7 +339,7 @@ impl<W: BaseExt, N: FieldExt> IntegerChipOps<W, N> for Context<W, N> {
         let one = N::one();
 
         let mut limbs = vec![];
-        for i in 0..LIMBS {
+        for i in 0..self.info().limbs as usize {
             let cell = self.sum_with_constant(
                 vec![(&a.limbs_le[i], one), (&b.limbs_le[i], -one)],
                 Some(upper_limbs[i]),
@@ -337,7 +347,7 @@ impl<W: BaseExt, N: FieldExt> IntegerChipOps<W, N> for Context<W, N> {
             limbs.push(cell);
         }
 
-        let schemas = limbs.iter().zip(info.limb_coeffs);
+        let schemas = limbs.iter().zip(info.limb_coeffs.clone());
         let native = self.sum_with_constant(schemas.collect(), None);
 
         let res = AssignedInteger::new(limbs.try_into().unwrap(), native, a.times + b.times + 2);
@@ -351,12 +361,12 @@ impl<W: BaseExt, N: FieldExt> IntegerChipOps<W, N> for Context<W, N> {
         let one = N::one();
 
         let mut limbs = vec![];
-        for i in 0..LIMBS {
+        for i in 0..self.info().limbs as usize {
             let cell = self.sum_with_constant(vec![(&a.limbs_le[i], -one)], Some(upper_limbs[i]));
             limbs.push(cell);
         }
 
-        let schemas = limbs.iter().zip(info.limb_coeffs);
+        let schemas = limbs.iter().zip(info.limb_coeffs.clone());
         let native = self.sum_with_constant(schemas.collect(), None);
 
         let res = AssignedInteger::new(limbs.try_into().unwrap(), native, a.times + 2);
@@ -409,7 +419,7 @@ impl<W: BaseExt, N: FieldExt> IntegerChipOps<W, N> for Context<W, N> {
         let a = {
             let a = self.reduce(a);
             let mut limbs_le = vec![];
-            for i in 0..LIMBS {
+            for i in 0..self.info().limbs as usize {
                 let cell = self.mul(&a.limbs_le[i], &a_coeff.0);
                 limbs_le.push(cell);
             }
@@ -498,11 +508,12 @@ impl<W: BaseExt, N: FieldExt> IntegerChipOps<W, N> for Context<W, N> {
         a: &AssignedInteger<W, N>,
         b: u64,
     ) -> AssignedInteger<W, N> {
-        assert!(b < OVERFLOW_THRESHOLD);
+        let threshold = 1 << (self.info().overflow_bits - 2);
+        assert!(b < threshold);
 
         let info = self.info();
 
-        let a_opt = if a.times * b >= OVERFLOW_LIMIT {
+        let a_opt = if a.times * b >= self.info().overflow_limit {
             Some(self.reduce(a))
         } else {
             None
@@ -515,12 +526,12 @@ impl<W: BaseExt, N: FieldExt> IntegerChipOps<W, N> for Context<W, N> {
         };
 
         let mut limbs = vec![];
-        for i in 0..LIMBS {
+        for i in 0..self.info().limbs as usize {
             let cell = self.sum_with_constant(vec![(&a.limbs_le[i], N::from(b as u64))], None);
             limbs.push(cell);
         }
 
-        let schemas = limbs.iter().zip(info.limb_coeffs);
+        let schemas = limbs.iter().zip(info.limb_coeffs.clone());
         let native = self.sum_with_constant(schemas.collect(), None);
 
         let res = AssignedInteger::new(limbs.try_into().unwrap(), native, a.times * b);
@@ -535,7 +546,7 @@ impl<W: BaseExt, N: FieldExt> IntegerChipOps<W, N> for Context<W, N> {
         b: &AssignedInteger<W, N>,
     ) -> AssignedInteger<W, N> {
         let mut limbs = vec![];
-        for i in 0..LIMBS {
+        for i in 0..self.info().limbs as usize {
             let cell = self.bisec(cond, &a.limbs_le[i], &b.limbs_le[i]);
             limbs.push(cell);
         }
