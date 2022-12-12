@@ -260,3 +260,29 @@ impl<W: BaseExt, N: FieldExt> RangeInfo<W, N> {
         limbs.try_into().unwrap()
     }
 }
+
+#[test]
+fn test_range_info() {
+    {
+        use halo2_proofs::pairing::bn256::Fr;
+        use halo2_proofs::pairing::bn256::Fq;
+
+        RangeInfo::<Fq, Fr>::new(18, 6);
+    }
+
+    {
+        use halo2_proofs::pairing::bn256::Fr;
+        use halo2_proofs::pairing::bls12_381::Fr as Bls12_381_Fr;
+        
+        let info = RangeInfo::<Bls12_381_Fr, Fr>::new(18, 6);
+        //println!("info {:?}", info);
+    }
+
+    {
+        use halo2_proofs::pairing::bn256::Fr;
+        use halo2_proofs::pairing::bls12_381::Fq as Bls12_381_Fq;
+        
+        let info = RangeInfo::<Bls12_381_Fq, Fr>::new(18, 6);
+        println!("info {:?}", info);
+    }
+}
