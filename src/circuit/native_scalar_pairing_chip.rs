@@ -22,7 +22,7 @@ impl<W: BaseExt, N: FieldExt> Context<W, N> {
     }
     pub fn fq2_assign_zero(&mut self) -> AssignedFq2<W, N> {
         let fq2_zero = self.assign_int_constant(W::zero());
-        (fq2_zero, fq2_zero)
+        (fq2_zero.clone(), fq2_zero)
     }
     pub fn fq2_assign_one(&mut self) -> AssignedFq2<W, N> {
         (
@@ -62,7 +62,7 @@ impl<W: BaseExt, N: FieldExt> Context<W, N> {
         (self.int_neg(&a.0), self.int_neg(&a.1))
     }
     pub fn fq2_conjugate(&mut self, a: &AssignedFq2<W, N>) -> AssignedFq2<W, N> {
-        (a.0, self.int_neg(&a.1))
+        (a.0.clone(), self.int_neg(&a.1))
     }
     pub fn fq2_mul_by_nonresidue(&mut self, a: &AssignedFq2<W, N>) -> AssignedFq2<W, N> {
         let a2 = self.fq2_double(a);
@@ -91,7 +91,7 @@ impl<W: BaseExt, N: FieldExt> Context<W, N> {
         let v = self.assign_int_constant(bn_to_field(&BigUint::from_bytes_le(
             &FROBENIUS_COEFF_FQ2_C1[power % 2],
         )));
-        (x.0, self.int_mul(&x.1, &v))
+        (x.0.clone(), self.int_mul(&x.1, &v))
     }
 }
 
@@ -103,12 +103,12 @@ impl<W: BaseExt, N: FieldExt> Context<W, N> {
     }
     pub fn fq6_assign_zero(&mut self) -> AssignedFq6<W, N> {
         let fq2_zero = self.fq2_assign_zero();
-        (fq2_zero, fq2_zero, fq2_zero)
+        (fq2_zero.clone(), fq2_zero.clone(), fq2_zero)
     }
     pub fn fq6_assign_one(&mut self) -> AssignedFq6<W, N> {
         let fq2_one = self.fq2_assign_one();
         let fq2_zero = self.fq2_assign_zero();
-        (fq2_one, fq2_zero, fq2_zero)
+        (fq2_one, fq2_zero.clone(), fq2_zero)
     }
     pub fn fq6_add(&mut self, a: &AssignedFq6<W, N>, b: &AssignedFq6<W, N>) -> AssignedFq6<W, N> {
         (
@@ -174,7 +174,7 @@ impl<W: BaseExt, N: FieldExt> Context<W, N> {
         (self.fq2_neg(&a.0), self.fq2_neg(&a.1), self.fq2_neg(&a.2))
     }
     pub fn fq6_mul_by_nonresidue(&mut self, a: &AssignedFq6<W, N>) -> AssignedFq6<W, N> {
-        (self.fq2_mul_by_nonresidue(&a.2), a.0, a.1)
+        (self.fq2_mul_by_nonresidue(&a.2), a.0.clone(), a.1.clone())
     }
     pub fn fq6_mul_by_1(
         &mut self,
@@ -298,7 +298,7 @@ impl<W: BaseExt, N: FieldExt> Context<W, N> {
     }
     pub fn fq12_assign_zero(&mut self) -> AssignedFq12<W, N> {
         let fq6_zero = self.fq6_assign_zero();
-        (fq6_zero, fq6_zero)
+        (fq6_zero.clone(), fq6_zero)
     }
     pub fn fq12_assign_one(&mut self) -> AssignedFq12<W, N> {
         let fq6_one = self.fq6_assign_one();
@@ -348,7 +348,7 @@ impl<W: BaseExt, N: FieldExt> Context<W, N> {
         (self.fq6_neg(&a.0), self.fq6_neg(&a.1))
     }
     pub fn fq12_conjugate(&mut self, x: &AssignedFq12<W, N>) -> AssignedFq12<W, N> {
-        (x.0, self.fq6_neg(&x.1))
+        (x.0.clone(), self.fq6_neg(&x.1))
     }
     pub fn fq12_mul_by_014(
         &mut self,
@@ -411,9 +411,9 @@ impl<W: BaseExt, N: FieldExt> Context<W, N> {
     }
     pub fn fq12_cyclotomic_square(&mut self, x: &AssignedFq12<W, N>) -> AssignedFq12<W, N> {
         let zero = self.fq2_assign_zero();
-        let mut t3 = zero;
-        let mut t4 = zero;
-        let mut t5 = zero;
+        let mut t3 = zero.clone();
+        let mut t4 = zero.clone();
+        let mut t5 = zero.clone();
         let mut t6 = zero;
 
         self.fp4_square(&mut t3, &mut t4, &x.0 .0, &x.1 .1);
@@ -613,7 +613,7 @@ impl<C: CurveAffine> NativeScalarEccContext<C> {
         self.0.assert_false(&g2.z);
         let z = self.0.fq2_assign_one();
 
-        AssignedG2::new(g2.x, g2.y, z)
+        AssignedG2::new(g2.x.clone(), g2.y.clone(), z)
     }
 
     pub fn g2_neg(
@@ -621,7 +621,7 @@ impl<C: CurveAffine> NativeScalarEccContext<C> {
         g2: &AssignedG2Affine<C, C::Scalar>,
     ) -> AssignedG2Affine<C, C::Scalar> {
         let y = self.0.fq2_neg(&g2.y);
-        AssignedG2Affine::new(g2.x, y, g2.z)
+        AssignedG2Affine::new(g2.x.clone(), y, g2.z)
     }
 
     pub fn prepare_g2(
@@ -784,37 +784,37 @@ impl<C: CurveAffine> NativeScalarEccContext<C> {
         let mut f2 = self.0.fq12_unsafe_invert(&f);
 
         let mut r = self.0.fq12_mul(&f1, &f2);
-        f2 = r;
+        f2 = r.clone();
         r = self.0.fq12_frobenius_map(&r, 2);
         r = self.0.fq12_mul(&r, &f2);
 
-        let mut fp = r;
+        let mut fp = r.clone();
         fp = self.0.fq12_frobenius_map(&fp, 1);
 
-        let mut fp2 = r;
+        let mut fp2 = r.clone();
         fp2 = self.0.fq12_frobenius_map(&fp2, 2);
-        let mut fp3 = fp2;
+        let mut fp3 = fp2.clone();
         fp3 = self.0.fq12_frobenius_map(&fp3, 1);
 
-        let mut fu = r;
+        let mut fu = r.clone();
         fu = self.exp_by_x(&fu);
 
-        let mut fu2 = fu;
+        let mut fu2 = fu.clone();
         fu2 = self.exp_by_x(&fu2);
 
-        let mut fu3 = fu2;
+        let mut fu3 = fu2.clone();
         fu3 = self.exp_by_x(&fu3);
 
-        let mut y3 = fu;
+        let mut y3 = fu.clone();
         y3 = self.0.fq12_frobenius_map(&y3, 1);
 
-        let mut fu2p = fu2;
+        let mut fu2p = fu2.clone();
         fu2p = self.0.fq12_frobenius_map(&fu2p, 1);
 
-        let mut fu3p = fu3;
+        let mut fu3p = fu3.clone();
         fu3p = self.0.fq12_frobenius_map(&fu3p, 1);
 
-        let mut y2 = fu2;
+        let mut y2 = fu2.clone();
         y2 = self.0.fq12_frobenius_map(&y2, 2);
 
         let mut y0 = fp;
@@ -851,7 +851,7 @@ impl<C: CurveAffine> NativeScalarEccContext<C> {
         t1 = self.0.fq12_mul(&t1, &y6);
         t1 = self.0.fq12_cyclotomic_square(&t1);
 
-        let mut t0 = t1;
+        let mut t0 = t1.clone();
         t0 = self.0.fq12_mul(&t0, &y1);
 
         t1 = self.0.fq12_mul(&t1, &y0);

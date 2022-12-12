@@ -2,8 +2,6 @@ use std::marker::PhantomData;
 
 use halo2_proofs::arithmetic::{BaseExt, CurveAffine, FieldExt};
 
-use crate::range_info::LIMBS;
-
 #[derive(Debug, Copy, Clone, Eq, PartialEq, Hash)]
 pub enum Chip {
     BaseChip = 0,
@@ -29,9 +27,9 @@ pub struct AssignedValue<N: FieldExt> {
     pub val: N,
 }
 
-#[derive(Debug, Copy, Clone)]
+#[derive(Debug, Clone)]
 pub struct AssignedInteger<W: BaseExt, N: FieldExt> {
-    pub limbs_le: [AssignedValue<N>; LIMBS],
+    pub limbs_le: Vec<AssignedValue<N>>,
     pub native: AssignedValue<N>,
     pub times: usize,
     _mark: PhantomData<W>,
@@ -60,17 +58,13 @@ pub struct AssignedPointWithCurvature<C: CurveAffine, N: FieldExt> {
 }
 
 impl<C: CurveAffine, N: FieldExt> AssignedPointWithCurvature<C, N> {
-    pub fn to_point(&self) -> AssignedPoint<C, N> {
+    pub fn to_point(self) -> AssignedPoint<C, N> {
         AssignedPoint::new(self.x, self.y, self.z)
     }
 }
 
 impl<W: BaseExt, N: FieldExt> AssignedInteger<W, N> {
-    pub fn new(
-        limbs_le: [AssignedValue<N>; LIMBS],
-        native: AssignedValue<N>,
-        times: usize,
-    ) -> Self {
+    pub fn new(limbs_le: Vec<AssignedValue<N>>, native: AssignedValue<N>, times: usize) -> Self {
         Self {
             limbs_le,
             native,
@@ -161,7 +155,7 @@ pub type AssignedFq12<W, N> = (AssignedFq6<W, N>, AssignedFq6<W, N>);
 
 pub type AssignedG1Affine<C, N> = AssignedPoint<C, N>;
 
-#[derive(Debug, Copy, Clone)]
+#[derive(Debug, Clone)]
 pub struct AssignedG2Affine<C: CurveAffine, N: FieldExt> {
     pub x: AssignedFq2<C::Base, N>,
     pub y: AssignedFq2<C::Base, N>,

@@ -62,7 +62,7 @@ pub trait EccChipOps<C: CurveAffine> {
     ) -> AssignedCurvature<C, C::ScalarExt>;
     fn to_point_with_curvature(
         &mut self,
-        a: &AssignedPoint<C, C::ScalarExt>,
+        a: AssignedPoint<C, C::ScalarExt>,
     ) -> AssignedPointWithCurvature<C, C::ScalarExt>;
     fn bisec_point_with_curvature(
         &mut self,
@@ -141,7 +141,7 @@ impl<C: CurveAffine> EccChipAlgorithms<C> for NativeScalarEccContext<C> {
                 let pos = 32 - i.leading_zeros() - 1;
                 let other = i - (1 << pos);
                 let p = self.ecc_add(&cl[other as usize], &chunk[pos as usize]);
-                let p = self.to_point_with_curvature(&p);
+                let p = self.to_point_with_curvature(p);
                 cl.push(p);
             }
         }
@@ -195,9 +195,9 @@ impl<C: CurveAffine> EccChipAlgorithms<C> for NativeScalarEccContext<C> {
             match acc {
                 None => acc = inner_acc,
                 Some(_acc) => {
-                    let p = self.to_point_with_curvature(&_acc);
+                    let p = self.to_point_with_curvature(_acc);
                     let p = self.ecc_double(&p);
-                    let p = self.to_point_with_curvature(&p);
+                    let p = self.to_point_with_curvature(p);
                     acc = Some(self.ecc_add(&p, &inner_acc.unwrap()));
                 }
             }
@@ -227,10 +227,10 @@ impl<C: CurveAffine> EccChipAlgorithms<C> for NativeScalarEccContext<C> {
         let point_candidates: Vec<Vec<AssignedPointWithCurvature<_, _>>> = points
             .iter()
             .map(|a| {
-                let mut candidates = vec![identity.clone(), self.to_point_with_curvature(a)];
+                let mut candidates = vec![identity.clone(), self.to_point_with_curvature(a.clone())];
                 for i in 2..(1 << WINDOW_SIZE) {
                     let ai = self.ecc_add(&candidates[i - 1], a);
-                    let ai = self.to_point_with_curvature(&ai);
+                    let ai = self.to_point_with_curvature(ai);
                     candidates.push(ai)
                 }
                 candidates
@@ -278,10 +278,10 @@ impl<C: CurveAffine> EccChipAlgorithms<C> for NativeScalarEccContext<C> {
                 None => acc = inner_acc,
                 Some(mut _acc) => {
                     for _ in 0..WINDOW_SIZE {
-                        let p = self.to_point_with_curvature(&_acc);
+                        let p = self.to_point_with_curvature(_acc);
                         _acc = self.ecc_double(&p);
                     }
-                    let p = self.to_point_with_curvature(&inner_acc.unwrap());
+                    let p = self.to_point_with_curvature(inner_acc.unwrap());
                     _acc = self.ecc_add(&p, &_acc);
                     acc = Some(_acc);
                 }
@@ -442,9 +442,11 @@ impl<C: CurveAffine> EccChipOps<C> for NativeScalarEccContext<C> {
         let tangent = AssignedCurvature(tangent, x_eq);
         let mut lambda = self.bisec_curvature(&eq, &a.curvature, &tangent);
 
-        let p = self.lambda_to_point(&mut lambda, &a.to_point(), b);
+        let a_p = a.clone().to_point();
+
+        let p = self.lambda_to_point(&mut lambda, &a_p, b);
         let p = self.bisec_point(&a.z, b, &p);
-        let p = self.bisec_point(&b.z, &a.to_point(), &p);
+        let p = self.bisec_point(&b.z, &a_p, &p);
 
         p
     }
@@ -453,7 +455,7 @@ impl<C: CurveAffine> EccChipOps<C> for NativeScalarEccContext<C> {
         &mut self,
         a: &AssignedPointWithCurvature<C, C::ScalarExt>,
     ) -> AssignedPoint<C, C::ScalarExt> {
-        let a_p = a.to_point();
+        let a_p = a.clone().to_point();
         let mut p = self.lambda_to_point(&a.curvature, &a_p, &a_p);
         p.z = self.0.bisec_cond(&a.z, &a.z, &p.z);
 
@@ -577,7 +579,7 @@ impl<C: CurveAffine> EccChipOps<C> for NativeScalarEccContext<C> {
 
     fn to_point_with_curvature(
         &mut self,
-        a: &AssignedPoint<C, C::ScalarExt>,
+        a: AssignedPoint<C, C::ScalarExt>,
     ) -> AssignedPointWithCurvature<C, C::ScalarExt> {
         // 3 * x ^ 2 / 2 * y
         let x_square = self.0.int_square(&a.x);
