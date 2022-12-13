@@ -456,12 +456,15 @@ impl<W: BaseExt, N: FieldExt> IntegerChipOps<W, N> for Context<W, N> {
         let info = self.info();
 
         let native_diff = self.add_constant(&a.native, -info.w_native);
-        let is_native_eq = self.is_zero(&native_diff);
+        let mut is_eq = self.is_zero(&native_diff);
 
-        let limb0_diff = self.add_constant(&a.limbs_le[0], -info.w_modulus_limbs_le[0]);
-        let is_limb0_eq = self.is_zero(&limb0_diff);
+        for i in 0..info.pure_w_check_limbs as usize {
+            let limb_diff = self.add_constant(&a.limbs_le[i], -info.w_modulus_limbs_le[i]);
+            let is_limb_eq = self.is_zero(&limb_diff);
+            is_eq = self.and(&is_eq, &is_limb_eq);
+        }
 
-        self.and(&is_native_eq, &is_limb0_eq)
+        is_eq
     }
 
     fn is_int_zero(&mut self, a: &AssignedInteger<W, N>) -> AssignedCondition<N> {

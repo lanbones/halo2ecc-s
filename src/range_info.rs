@@ -43,6 +43,8 @@ pub struct RangeInfo<W: BaseExt, N: FieldExt> {
 
     pub w_native: N,
 
+    pub pure_w_check_limbs: u64,
+
     pub _phantom: PhantomData<W>,
 }
 
@@ -140,6 +142,8 @@ impl<W: BaseExt, N: FieldExt> RangeInfo<W, N> {
             overflow_bits,
             overflow_limit: 1 << overflow_bits,
 
+            pure_w_check_limbs: (w_ceil_bits - n_floor_bits + limb_bits - 1) / limb_bits,
+
             _phantom: PhantomData,
         };
 
@@ -150,8 +154,8 @@ impl<W: BaseExt, N: FieldExt> RangeInfo<W, N> {
     fn pre_check(&self) {
         // is_pure_w_modulus():
         // lcm(limb, native) >= w_ceil
-        let limb_modulus = &self.limb_modulus;
-        let lcm = self.n_modulus.lcm(&limb_modulus);
+        let limb_check_modulus = BigUint::from(1u64) << (self.limb_bits * self.pure_w_check_limbs);
+        let lcm = self.n_modulus.lcm(&limb_check_modulus);
         assert!(lcm >= self.w_ceil);
 
         // reduce():
