@@ -242,6 +242,7 @@ impl<W: BaseExt, N: FieldExt> IntegerChipOps<W, N> for Context<W, N> {
         (limbs.try_into().unwrap(), native)
     }
 
+    // to be adjust for bls12_381 on bn256
     fn reduce(&mut self, a: &AssignedInteger<W, N>) -> AssignedInteger<W, N> {
         if a.times == 1 {
             return a.clone();
@@ -334,7 +335,7 @@ impl<W: BaseExt, N: FieldExt> IntegerChipOps<W, N> for Context<W, N> {
         b: &AssignedInteger<W, N>,
     ) -> AssignedInteger<W, N> {
         let info = self.info();
-        let upper_limbs = self.info().find_w_modulus_ceil(b.times);
+        let upper_limbs = self.info().w_modulus_of_ceil_times[b.times as usize].clone().unwrap();
 
         let one = N::one();
 
@@ -350,13 +351,13 @@ impl<W: BaseExt, N: FieldExt> IntegerChipOps<W, N> for Context<W, N> {
         let schemas = limbs.iter().zip(info.limb_coeffs.clone());
         let native = self.sum_with_constant(schemas.collect(), None);
 
-        let res = AssignedInteger::new(limbs.try_into().unwrap(), native, a.times + b.times + 2);
+        let res = AssignedInteger::new(limbs.try_into().unwrap(), native, a.times + b.times + 1);
         self.conditionally_reduce(res)
     }
 
     fn int_neg(&mut self, a: &AssignedInteger<W, N>) -> AssignedInteger<W, N> {
         let info = self.info();
-        let upper_limbs = self.info().find_w_modulus_ceil(a.times);
+        let upper_limbs = self.info().w_modulus_of_ceil_times[a.times as usize].clone().unwrap();
 
         let one = N::one();
 
@@ -369,7 +370,7 @@ impl<W: BaseExt, N: FieldExt> IntegerChipOps<W, N> for Context<W, N> {
         let schemas = limbs.iter().zip(info.limb_coeffs.clone());
         let native = self.sum_with_constant(schemas.collect(), None);
 
-        let res = AssignedInteger::new(limbs.try_into().unwrap(), native, a.times + 2);
+        let res = AssignedInteger::new(limbs.try_into().unwrap(), native, a.times + 1);
         self.conditionally_reduce(res)
     }
 

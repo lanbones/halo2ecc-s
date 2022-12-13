@@ -44,6 +44,7 @@ pub struct RangeInfo<W: BaseExt, N: FieldExt> {
     pub w_native: N,
 
     pub pure_w_check_limbs: u64,
+    pub w_modulus_of_ceil_times: Vec<Option<Vec<N>>>,
 
     pub _phantom: PhantomData<W>,
 }
@@ -104,7 +105,10 @@ impl<W: BaseExt, N: FieldExt> RangeInfo<W, N> {
         let limb_modulus = BigUint::from(1u64) << limb_bits;
         let limb_modulus_n = bn_to_field(&limb_modulus);
 
-        let res = Self {
+        let overflow_limit = 1u64 << overflow_bits;
+        let w_modulus_of_ceil_times = vec![None; overflow_limit as usize];
+
+        let mut res = Self {
             w_ceil_bits,
             d_leading_bits,
             w_ceil_leading_bits,
@@ -140,18 +144,24 @@ impl<W: BaseExt, N: FieldExt> RangeInfo<W, N> {
             d_leading_chunks,
 
             overflow_bits,
-            overflow_limit: 1 << overflow_bits,
+            overflow_limit,
 
             pure_w_check_limbs: (w_ceil_bits - n_floor_bits + limb_bits - 1) / limb_bits,
+            w_modulus_of_ceil_times,
 
             _phantom: PhantomData,
         };
+
+        for i in 1..overflow_limit {
+            res.w_modulus_of_ceil_times[i as usize] = Some(res.find_w_modulus_of_ceil_times(i));
+        }
 
         res.pre_check();
         res
     }
 
     fn pre_check(&self) {
+
         // is_pure_w_modulus():
         // lcm(limb, native) >= w_ceil
         let limb_check_modulus = BigUint::from(1u64) << (self.limb_bits * self.pure_w_check_limbs);
@@ -243,8 +253,8 @@ impl<W: BaseExt, N: FieldExt> RangeInfo<W, N> {
             .unwrap()
     }
 
-    pub fn find_w_modulus_ceil(&self, times: u64) -> Vec<N> {
-        let max = &self.w_ceil * (times + 1);
+    pub fn find_w_modulus_of_ceil_times(&self, times: u64) -> Vec<N> {
+        let max = &self.w_ceil * times;
         let (n, rem) = max.div_rem(&self.w_modulus);
         let n = if rem.gt(&BigUint::from(0u64)) {
             n + 1u64
@@ -260,6 +270,10 @@ impl<W: BaseExt, N: FieldExt> RangeInfo<W, N> {
             upper = (upper - &rem) >> self.limb_bits;
             limbs.push(bn_to_field::<N>(&rem));
         }
+
+        assert!(upper >= (BigUint::from(1u64) << (self.w_ceil_bits % self.limb_bits)) * times);
+        assert!(upper < (BigUint::from(1u64) << (self.w_ceil_bits % self.limb_bits)) * (times + 1));
+
         limbs.push(bn_to_field::<N>(&upper));
         limbs.try_into().unwrap()
     }
@@ -268,25 +282,25 @@ impl<W: BaseExt, N: FieldExt> RangeInfo<W, N> {
 #[test]
 fn test_range_info() {
     {
-        use halo2_proofs::pairing::bn256::Fr;
         use halo2_proofs::pairing::bn256::Fq;
+        use halo2_proofs::pairing::bn256::Fr;
 
         RangeInfo::<Fq, Fr>::new(18, 6);
     }
 
     {
-        use halo2_proofs::pairing::bn256::Fr;
         use halo2_proofs::pairing::bls12_381::Fr as Bls12_381_Fr;
-        
-        let info = RangeInfo::<Bls12_381_Fr, Fr>::new(18, 6);
+        use halo2_proofs::pairing::bn256::Fr;
+
+        RangeInfo::<Bls12_381_Fr, Fr>::new(18, 6);
         //println!("info {:?}", info);
     }
 
     {
-        use halo2_proofs::pairing::bn256::Fr;
-        use halo2_proofs::pairing::bls12_381::Fq as Bls12_381_Fq;
-        
-        let info = RangeInfo::<Bls12_381_Fq, Fr>::new(18, 6);
-        println!("info {:?}", info);
+        //use halo2_proofs::pairing::bls12_381::Fq as Bls12_381_Fq;
+        //use halo2_proofs::pairing::bn256::Fr;
+
+        //let info = RangeInfo::<Bls12_381_Fq, Fr>::new(18, 6);
+        //println!("info {:?}", info);
     }
 }
