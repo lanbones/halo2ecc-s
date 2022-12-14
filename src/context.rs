@@ -71,7 +71,6 @@ impl<W: BaseExt, N: FieldExt> IntegerContext<W, N> {
     }
 }
 
-#[repr(transparent)]
 pub struct NativeScalarEccContext<C: CurveAffine>(
     pub IntegerContext<<C as CurveAffine>::Base, <C as CurveAffine>::ScalarExt>,
 );

@@ -1,13 +1,13 @@
 use crate::assign::{AssignedCondition, AssignedG2Affine};
 use crate::circuit::base_chip::{BaseChip, BaseChipConfig, BaseChipOps};
-use crate::circuit::native_scalar_ecc_chip::EccChipOps;
+use crate::circuit::ecc_chip::EccChipBaseOps;
 use crate::circuit::range_chip::RangeChip;
 use crate::circuit::range_chip::RangeChipConfig;
 use crate::context::{Context, NativeScalarEccContext};
 use crate::context::{IntegerContext, Records};
 use ark_std::{end_timer, start_timer};
 use halo2_proofs::arithmetic::{CurveAffine, FieldExt};
-use halo2_proofs::pairing::bn256::{Fq, Fr, G2Affine, G1, G2, G1Affine};
+use halo2_proofs::pairing::bn256::{Fq, Fr, G1Affine, G2Affine, G1, G2};
 use halo2_proofs::pairing::group::Group;
 use halo2_proofs::{
     circuit::{Layouter, SimpleFloorPlanner},

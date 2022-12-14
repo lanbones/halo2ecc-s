@@ -4,3 +4,5 @@ pub mod integer_chip;
 pub mod native_scalar_ecc_chip;
 pub mod native_scalar_pairing_chip;
 pub mod bn256_constants;
+pub mod fq12;
+pub mod ecc_chip;

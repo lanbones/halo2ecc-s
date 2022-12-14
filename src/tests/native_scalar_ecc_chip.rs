@@ -1,6 +1,6 @@
 use crate::assign::AssignedPoint;
 use crate::circuit::base_chip::{BaseChip, BaseChipConfig, BaseChipOps};
-use crate::circuit::native_scalar_ecc_chip::EccChipOps;
+use crate::circuit::ecc_chip::{EccChipBaseOps, EccChipScalarOps};
 use crate::circuit::range_chip::RangeChip;
 use crate::circuit::range_chip::RangeChipConfig;
 use crate::context::{Context, NativeScalarEccContext};
@@ -97,7 +97,7 @@ fn test_native_ecc_chip() {
 
     let points = points
         .iter()
-        .map(|x| EccChipOps::<G1Affine>::assign_point(&mut ctx, x))
+        .map(|x| ctx.assign_point(x))
         .collect::<Vec<_>>();
     let scalars = scalars
         .into_iter()
