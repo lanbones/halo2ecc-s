@@ -248,55 +248,88 @@ impl<W: BaseExt, N: FieldExt> IntegerChipOps<W, N> for Context<W, N> {
             return a.clone();
         }
 
-        assert!(a.times < self.info().overflow_limit);
+        let zero = N::zero();
+        let one = N::one();
 
         let info = self.info();
-        let one = N::one();
+        let overflow_limit = info.overflow_limit;
+        assert!(a.times < overflow_limit);
 
         // Check a = d * w + rem
         let a_bn = self.get_w_bn(&a);
         let (d, rem) = a_bn.div_rem(&info.w_modulus);
 
-        // self.info().overflow_limit * limb_modulus > a.times * limb_modulus > a[0]
-        // u = d * w[0] + rem[0] + self.info().overflow_limit * limb_modulus - a[0]
-        //   < common * limb_modulus + limb_modulus + self.info().overflow_limit * limb_modulus
-        // v = u / limbs < common
-        //   < common + 1 + self.info().overflow_limit
-        let u = &d * &info.w_modulus_limbs_le_bn[0]
-            + &info.bn_to_limb_le(&rem)[0]
-            + &info.limb_modulus * self.info().overflow_limit
-            - field_to_bn(&a.limbs_le[0].val);
-
-        let (v, v_rem) = u.div_rem(&info.limb_modulus);
-        assert!(v_rem == BigUint::from(0u64));
-
-        let rem = self.assign_w(&rem);
-        let d = self.assign_common(&d);
-        let v = self.assign_nonleading_limb(&v);
+        let assigned_rem = self.assign_w(&rem);
+        let assigned_d = self.assign_common(&d);
 
         // Constrain on native.
         self.one_line_with_last(
-            vec![pair!(&d, info.w_native), pair!(&rem.native, one)],
+            vec![
+                pair!(&assigned_d, info.w_native),
+                pair!(&assigned_rem.native, one),
+            ],
             pair!(&a.native, -one),
             None,
             (vec![], None),
         );
 
-        // constrains on limb_modulus
-        self.one_line_with_last(
-            vec![
-                pair!(&d, info.w_modulus_limbs_le[0]),
-                pair!(&rem.limbs_le[0], one),
-                pair!(&a.limbs_le[0], -one),
-            ],
-            pair!(&v, -bn_to_field::<N>(&info.limb_modulus)),
-            Some(bn_to_field(
-                &(&info.limb_modulus * self.info().overflow_limit),
-            )),
-            (vec![], None),
-        );
+        // Check equation on n limbs
+        // so we have
+        // `a = d * w + rem (mod in 2 ^ (limb_bits) ^ n)`
+        // `a = d * w + rem (mod native)`
+        // ->
+        // `a = d * w + rem (mod in lcm(native, 2 ^ (limb_bits) ^ n))`
 
-        rem
+        // To ensure completeness
+        // `max_a = w_ceil * overflow_limit < lcm(native, 2 ^ (limb_bits) ^ n))`
+
+        // In each limb check, we need to find a `v`, that
+        // `d *w.limb[i] + rem.limb[i] - a.limb[i] + overflow_limit * limb_modulus + carry = v * limb_modulus`
+        // To ensure `v < limb_modulus`
+        // `max(d * w.limb[i] + rem.limb[i] - a.limb[i] + overflow_limit * limb_modulus + carry) / limb_modulus`
+        // = `(common_modulus * limb_modulus + limb_modulus + overflow_limit * limb_modulus + limb_modulus) / limb_modulus`
+        // = `(common_modulus + 1 + overflow_limit + 1)`
+        // = `(common_modulus + overflow_limit + 2)` <= limb_modulus
+
+        let mut carry = BigUint::from(0u64);
+        let mut last_v = None;
+        for i in 0..info.reduce_check_limbs as usize {
+            // check equation on ith limbs
+            let u = &d * &info.w_modulus_limbs_le_bn[i]
+                + &info.bn_to_limb_le(&rem)[i]
+                + &info.limb_modulus * overflow_limit
+                - field_to_bn(&a.limbs_le[i].val)
+                + carry;
+
+            let (v, v_rem) = u.div_rem(&info.limb_modulus);
+            assert!(v_rem == BigUint::from(0u64));
+
+            let v = self.assign_nonleading_limb(&v);
+
+            // constrains on limb_modulus
+            self.one_line_with_last(
+                vec![
+                    pair!(&assigned_d, info.w_modulus_limbs_le[i]),
+                    pair!(&assigned_rem.limbs_le[i], one),
+                    pair!(&a.limbs_le[i], -one),
+                    match &last_v {
+                        Some(last_v) => pair!(last_v, one),
+                        None => pair!(zero, zero),
+                    },
+                ],
+                pair!(&v, -bn_to_field::<N>(&info.limb_modulus)),
+                Some(bn_to_field(
+                    &(&info.limb_modulus * overflow_limit
+                        - if i == 0 { 0u64 } else { overflow_limit }),
+                )),
+                (vec![], None),
+            );
+
+            carry = field_to_bn(&v.val) - overflow_limit;
+            last_v = Some(v);
+        }
+
+        assigned_rem
     }
 
     fn conditionally_reduce(&mut self, a: AssignedInteger<W, N>) -> AssignedInteger<W, N> {
@@ -335,7 +368,9 @@ impl<W: BaseExt, N: FieldExt> IntegerChipOps<W, N> for Context<W, N> {
         b: &AssignedInteger<W, N>,
     ) -> AssignedInteger<W, N> {
         let info = self.info();
-        let upper_limbs = self.info().w_modulus_of_ceil_times[b.times as usize].clone().unwrap();
+        let upper_limbs = self.info().w_modulus_of_ceil_times[b.times as usize]
+            .clone()
+            .unwrap();
 
         let one = N::one();
 
@@ -357,7 +392,9 @@ impl<W: BaseExt, N: FieldExt> IntegerChipOps<W, N> for Context<W, N> {
 
     fn int_neg(&mut self, a: &AssignedInteger<W, N>) -> AssignedInteger<W, N> {
         let info = self.info();
-        let upper_limbs = self.info().w_modulus_of_ceil_times[a.times as usize].clone().unwrap();
+        let upper_limbs = self.info().w_modulus_of_ceil_times[a.times as usize]
+            .clone()
+            .unwrap();
 
         let one = N::one();
 
@@ -392,6 +429,7 @@ impl<W: BaseExt, N: FieldExt> IntegerChipOps<W, N> for Context<W, N> {
 
         rem
     }
+
     fn int_unsafe_invert(&mut self, x: &AssignedInteger<W, N>) -> AssignedInteger<W, N> {
         //TODO: optimize
         let one = self.assign_int_constant(W::one());
@@ -399,6 +437,7 @@ impl<W: BaseExt, N: FieldExt> IntegerChipOps<W, N> for Context<W, N> {
         self.assert_false(&c);
         v
     }
+
     fn int_div(
         &mut self,
         a: &AssignedInteger<W, N>,

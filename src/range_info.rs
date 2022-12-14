@@ -44,6 +44,7 @@ pub struct RangeInfo<W: BaseExt, N: FieldExt> {
     pub w_native: N,
 
     pub pure_w_check_limbs: u64,
+    pub reduce_check_limbs: u64,
     pub w_modulus_of_ceil_times: Vec<Option<Vec<N>>>,
 
     pub _phantom: PhantomData<W>,
@@ -147,6 +148,8 @@ impl<W: BaseExt, N: FieldExt> RangeInfo<W, N> {
             overflow_limit,
 
             pure_w_check_limbs: (w_ceil_bits - n_floor_bits + limb_bits - 1) / limb_bits,
+            reduce_check_limbs: (w_ceil_bits + overflow_bits - n_floor_bits + limb_bits - 1)
+                / limb_bits,
             w_modulus_of_ceil_times,
 
             _phantom: PhantomData,
@@ -161,7 +164,6 @@ impl<W: BaseExt, N: FieldExt> RangeInfo<W, N> {
     }
 
     fn pre_check(&self) {
-
         // is_pure_w_modulus():
         // lcm(limb, native) >= w_ceil
         let limb_check_modulus = BigUint::from(1u64) << (self.limb_bits * self.pure_w_check_limbs);
@@ -169,18 +171,18 @@ impl<W: BaseExt, N: FieldExt> RangeInfo<W, N> {
         assert!(lcm >= self.w_ceil);
 
         // reduce():
-        // lcm(limb, native) >= w_ceil * self.overflow_limit
-        let limb_modulus = &self.limb_modulus;
+        // lcm(limb ^ reduce_check_limbs, native) >= w_ceil * self.overflow_limit
+        let limb_modulus = BigUint::from(1u64) << (self.limb_bits * self.reduce_check_limbs);
         let lcm = self.n_modulus.lcm(&limb_modulus);
         assert!(lcm >= &self.w_ceil * self.overflow_limit);
-        // to ensure that d can be assigned by assign_common.
+        // Ensure that d can be assigned by assign_common.
         assert!(COMMON_RANGE_BITS > self.overflow_bits);
-        // to ensure that v can be assigned by assign_nonleading_limb
+        // Ensure that v can be assigned by assign_nonleading_limb
         assert!(
-            &(BigUint::from(1u64) << COMMON_RANGE_BITS + 1 + self.overflow_bits)
-                < &self.limb_modulus
+            &((BigUint::from(1u64) << COMMON_RANGE_BITS) + 2u64 + self.overflow_bits)
+                <= &self.limb_modulus
         );
-        // to ensure that v * limb_modulus would not overflow
+        // Ensure that v * limb_modulus would not overflow
         assert!(&(&self.limb_modulus * &self.limb_modulus) < &self.n_modulus);
 
         // mul():
