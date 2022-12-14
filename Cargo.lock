@@ -689,7 +689,7 @@ dependencies = [
 [[package]]
 name = "pairing_bn256"
 version = "0.1.1"
-source = "git+https://github.com/lanbones/pairing#40a5f1295aaec41050588bcb4ddbfdc6596ced2a"
+source = "git+https://github.com/lanbones/pairing#42a081b35e39f2a70497cfbfb7f8861ea48fb317"
 dependencies = [
  "bls12_381",
  "ec-gpu",

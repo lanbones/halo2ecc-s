@@ -9,9 +9,9 @@ pub fn field_to_bn<F: BaseExt>(f: &F) -> BigUint {
 
 pub fn bn_to_field<F: BaseExt>(bn: &BigUint) -> F {
     let modulus = field_to_bn(&-F::one()) + 1u64;
-    let bn = bn % modulus;
+    let bn = bn % &modulus;
     let mut bytes = bn.to_bytes_le();
-    bytes.resize(32, 0);
+    bytes.resize((modulus.bits() as usize + 7) / 8, 0);
     let mut bytes = &bytes[..];
     F::read(&mut bytes).unwrap()
 }

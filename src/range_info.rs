@@ -24,17 +24,14 @@ pub struct RangeInfo<W: BaseExt, N: FieldExt> {
 
     pub w_ceil: BigUint,
     pub n_modulus: BigUint,
-    pub neg_w_modulus: BigUint,
     pub w_modulus: BigUint,
     pub common_range_mask: BigUint,
     pub limb_mask: BigUint,
     pub limb_modulus: BigUint,
-    pub integer_modulus: BigUint,
     pub max_d: BigUint,
 
     pub w_modulus_limbs_le_bn: Vec<BigUint>,
     pub w_modulus_limbs_le: Vec<N>,
-    pub neg_w_modulus_limbs_le: Vec<N>,
     pub limb_coeffs: Vec<N>,
     pub limb_modulus_n: N,
 
@@ -45,6 +42,7 @@ pub struct RangeInfo<W: BaseExt, N: FieldExt> {
 
     pub pure_w_check_limbs: u64,
     pub reduce_check_limbs: u64,
+    pub mul_check_limbs: u64,
     pub w_modulus_of_ceil_times: Vec<Option<Vec<N>>>,
 
     pub _phantom: PhantomData<W>,
@@ -87,16 +85,10 @@ impl<W: BaseExt, N: FieldExt> RangeInfo<W, N> {
         let n_modulus = &n_max + 1u64;
         let w_modulus = &w_max + 1u64;
         let w_native = &w_modulus % &n_modulus;
-        let integer_modulus = BigUint::from(1u64) << (limbs * limb_bits);
-        let neg_w_modulus = &integer_modulus - &w_modulus;
 
         let w_modulus_limbs_le_bn = (0..limbs)
             .into_iter()
             .map(|i| ((&w_modulus >> (i * limb_bits)) & &limb_mask))
-            .collect::<Vec<_>>();
-        let neg_w_modulus_limbs_le = (0..limbs)
-            .into_iter()
-            .map(|i| (bn_to_field::<N>(&((&neg_w_modulus >> (i * limb_bits)) & &limb_mask))))
             .collect::<Vec<_>>();
         let w_modulus_limbs_le = w_modulus_limbs_le_bn
             .iter()
@@ -119,11 +111,9 @@ impl<W: BaseExt, N: FieldExt> RangeInfo<W, N> {
             w_ceil: BigUint::from(1u64) << w_ceil_bits,
             n_modulus,
             w_modulus,
-            neg_w_modulus,
             common_range_mask: BigUint::from((1u64 << common_bits) - 1),
             limb_mask,
             limb_modulus,
-            integer_modulus,
             limb_coeffs: (0..limbs)
                 .into_iter()
                 .map(|i| bn_to_field(&(BigUint::from(1u64) << (i * limb_bits))))
@@ -132,7 +122,6 @@ impl<W: BaseExt, N: FieldExt> RangeInfo<W, N> {
                 .unwrap(),
 
             limb_modulus_n,
-            neg_w_modulus_limbs_le,
             w_modulus_limbs_le,
             w_modulus_limbs_le_bn,
 
@@ -148,6 +137,8 @@ impl<W: BaseExt, N: FieldExt> RangeInfo<W, N> {
             overflow_limit,
 
             pure_w_check_limbs: (w_ceil_bits - n_floor_bits + limb_bits - 1) / limb_bits,
+            mul_check_limbs: (w_ceil_bits * 2 + overflow_bits * 2 - n_floor_bits + limb_bits - 1)
+                / limb_bits,
             reduce_check_limbs: (w_ceil_bits + overflow_bits - n_floor_bits + limb_bits - 1)
                 / limb_bits,
             w_modulus_of_ceil_times,
@@ -164,6 +155,8 @@ impl<W: BaseExt, N: FieldExt> RangeInfo<W, N> {
     }
 
     fn pre_check(&self) {
+        let common_modulus = 1u64 << COMMON_RANGE_BITS;
+
         // is_pure_w_modulus():
         // lcm(limb, native) >= w_ceil
         let limb_check_modulus = BigUint::from(1u64) << (self.limb_bits * self.pure_w_check_limbs);
@@ -187,7 +180,9 @@ impl<W: BaseExt, N: FieldExt> RangeInfo<W, N> {
 
         // mul():
         // lcm(integer_modulus, native) >= w_ceil * w_ceil * self.overflow_limit * self.overflow_limit
-        let lcm = self.integer_modulus.lcm(&self.n_modulus);
+        let lcm = self
+            .n_modulus
+            .lcm(&(BigUint::from(1u64) << (self.limb_bits * self.mul_check_limbs)));
         let max_a = &self.w_modulus * self.overflow_limit;
         let max_b = &self.w_modulus * self.overflow_limit;
         let max_l = max_a * max_b;
@@ -198,26 +193,37 @@ impl<W: BaseExt, N: FieldExt> RangeInfo<W, N> {
         assert!(max_l <= lcm);
         assert!(max_r <= lcm);
         assert!(max_l <= max_r);
-        // (u, v)
+        // On each check limb,
+        // To ensure positive, we borrow
+        // `limbs * limb_modulus * limb_modulus + limb_modulus + limb_modulus`
+        // The last limb_modulus is reserved for previous borrow
+
+        // `sum(a.limb * b.limb) - sum(d.limb * w.limb) - rem + borrow + carry = v * limb_modulus`
+        // max(v) =
+        // (overflow_limit * overflow_limit * limb_modulus + limbs * limb_modulus + 2) * 2
+        // Here we multiply 2 to briefly calculate the carry.
+        // Indeed, it should be very small.
+
+        // Split v into v_h * limb_modulus + v_l
+        // max(v_h) = (overflow_limit * overflow_limit * limbs + limbs + 2) * 2
+
+        // Ensure max(v_h) < common_modulus
+        assert!(
+            common_modulus
+                > (self.limbs * self.overflow_limit * self.overflow_limit + self.limbs + 2) * 2
+        );
+
+        // Ensure sum limbs non-overflow
         let sum_limb_max = self.limbs
             * (self.overflow_limit * self.overflow_limit + 1)
             * &self.limb_modulus
             * &self.limb_modulus;
         assert!(sum_limb_max < self.n_modulus);
-        // Ensure we can split v into (common, nonleading)
-        // The last `1` reserve for the borrow and carry.
-        // The real reserved value is (1 + common) / limb_modulus.
-        assert!(
-            1 << COMMON_RANGE_BITS
-                > self.limbs * (self.overflow_limit * self.overflow_limit + 1 + 1)
-        );
-        let common_modulus = BigUint::from(1u64) << COMMON_RANGE_BITS;
-        assert!(&common_modulus + 1u64 < self.limb_modulus);
 
-        // Ensure nonoverflow for one limb sum check.
+        // Ensure non-overflow for one limb sum check, i.e. `v * limb_modulus`.
         assert!(&self.limb_modulus * &self.limb_modulus * common_modulus < self.n_modulus);
 
-        // algorithm limitation
+        // Algorithm limitation
         assert!(self.limbs >= 3);
     }
 
@@ -299,10 +305,10 @@ fn test_range_info() {
     }
 
     {
-        //use halo2_proofs::pairing::bls12_381::Fq as Bls12_381_Fq;
-        //use halo2_proofs::pairing::bn256::Fr;
+        use halo2_proofs::pairing::bls12_381::Fq as Bls12_381_Fq;
+        use halo2_proofs::pairing::bn256::Fr;
 
-        //let info = RangeInfo::<Bls12_381_Fq, Fr>::new(18, 6);
-        //println!("info {:?}", info);
+        let info = RangeInfo::<Bls12_381_Fq, Fr>::new(18, 6);
+        println!("info {:?}", info);
     }
 }

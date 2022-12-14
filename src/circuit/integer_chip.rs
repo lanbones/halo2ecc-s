@@ -83,18 +83,21 @@ impl<W: BaseExt, N: FieldExt> Context<W, N> {
         let one = N::one();
 
         let mut limbs = vec![];
-        for pos in 0..self.info().limbs as usize {
+        for pos in 0..info.mul_check_limbs as usize {
             // e.g. l0 = a0 * b0 - d0 * w0
             // e.g. l1 = a1 * b0 + a0 * b1 - d1 * w0 - d0 * w1
             // ...
+
+            let r_bound = usize::min(pos + 1, info.limbs as usize);
+            let l_bound = pos.checked_sub(info.limbs as usize - 1).unwrap_or(0);
             let l = self.mul_add_with_next_line(
-                (0..pos + 1)
+                (l_bound..r_bound)
                     .map(|i| {
                         (
                             &a.limbs_le[i],
                             &b.limbs_le[pos - i],
                             &d[i],
-                            info.neg_w_modulus_limbs_le[pos - i],
+                            -info.w_modulus_limbs_le[pos - i],
                         )
                     })
                     .collect(),
@@ -103,12 +106,12 @@ impl<W: BaseExt, N: FieldExt> Context<W, N> {
             limbs.push(l);
         }
 
-        // 4 self.info().limbs can reduce loop by merging 2 limbs check.
+        let borrow = N::from(info.limbs) * info.limb_modulus_n + N::from(2u64);
 
         // check sum limb[0]
         let u = self.sum_with_constant(
             vec![(&limbs[0], one), (&rem.limbs_le[0], -one)],
-            Some(info.limb_modulus_n),
+            Some(info.limb_modulus_n * borrow),
         );
         let (v, r) = field_to_bn(&u.val).div_rem(&info.limb_modulus);
         assert_eq!(r, BigUint::from(0u64));
@@ -129,16 +132,13 @@ impl<W: BaseExt, N: FieldExt> Context<W, N> {
         // check sum limb[1..] with carry
         for i in 1..self.info().limbs as usize {
             let u = self.sum_with_constant(
-                vec![(&limbs[i], one), (&rem.limbs_le[i], -one)],
-                Some(info.limb_modulus_n - one),
-            );
-            let u = self.sum_with_constant(
                 vec![
+                    (&limbs[i], one),
+                    (&rem.limbs_le[i], -one),
                     (&v_h, info.limb_coeffs[1]),
                     (&v_l, info.limb_coeffs[0]),
-                    (&u, one),
                 ],
-                None,
+                Some(info.limb_modulus_n * borrow - borrow),
             );
 
             let (v, r) = field_to_bn(&u.val).div_rem(&info.limb_modulus);
@@ -291,15 +291,19 @@ impl<W: BaseExt, N: FieldExt> IntegerChipOps<W, N> for Context<W, N> {
         // = `(common_modulus + 1 + overflow_limit + 1)`
         // = `(common_modulus + overflow_limit + 2)` <= limb_modulus
 
-        let mut carry = BigUint::from(0u64);
-        let mut last_v = None;
+        let mut last_v: Option<AssignedValue<N>> = None;
         for i in 0..info.reduce_check_limbs as usize {
             // check equation on ith limbs
+            let last_borrow = if i != 0 { overflow_limit } else { 0 };
+            let carry = last_v
+                .map(|v| field_to_bn(&v.val))
+                .unwrap_or(BigUint::from(0u64));
             let u = &d * &info.w_modulus_limbs_le_bn[i]
                 + &info.bn_to_limb_le(&rem)[i]
                 + &info.limb_modulus * overflow_limit
                 - field_to_bn(&a.limbs_le[i].val)
-                + carry;
+                + carry
+                - last_borrow;
 
             let (v, v_rem) = u.div_rem(&info.limb_modulus);
             assert!(v_rem == BigUint::from(0u64));
@@ -325,7 +329,6 @@ impl<W: BaseExt, N: FieldExt> IntegerChipOps<W, N> for Context<W, N> {
                 (vec![], None),
             );
 
-            carry = field_to_bn(&v.val) - overflow_limit;
             last_v = Some(v);
         }
 

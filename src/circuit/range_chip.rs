@@ -9,7 +9,7 @@ use halo2_proofs::{
 use num_bigint::BigUint;
 use std::{marker::PhantomData, sync::Arc, vec};
 
-pub const MAX_CHUNKS: u64 = 5;
+pub const MAX_CHUNKS: u64 = 6;
 pub const MAX_BITS: u64 = 18;
 pub const COMMON_RANGE_BITS: u64 = MAX_BITS as u64;
 
