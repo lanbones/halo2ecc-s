@@ -1,3 +1,5 @@
+use std::cell::RefMut;
+
 use halo2_proofs::arithmetic::{BaseExt, FieldExt};
 use num_bigint::BigUint;
 use num_integer::Integer;
@@ -11,6 +13,8 @@ use crate::{
 };
 
 pub trait IntegerChipOps<W: BaseExt, N: FieldExt> {
+    fn base_chip(&mut self) -> RefMut<'_, dyn BaseChipOps<N>>;
+    fn range_chip(&mut self) -> &mut dyn RangeChipOps<W, N>;
     fn assign_w(&mut self, w: &BigUint) -> AssignedInteger<W, N>;
     fn assign_d(&mut self, v: &BigUint) -> (Vec<AssignedValue<N>>, AssignedValue<N>);
     fn conditionally_reduce(&mut self, a: AssignedInteger<W, N>) -> AssignedInteger<W, N>;
@@ -190,6 +194,14 @@ impl<W: BaseExt, N: FieldExt> IntegerContext<W, N> {
 }
 
 impl<W: BaseExt, N: FieldExt> IntegerChipOps<W, N> for IntegerContext<W, N> {
+    fn base_chip(&mut self) -> RefMut<'_, dyn BaseChipOps<N>> {
+        self.ctx.borrow_mut()
+    }
+
+    fn range_chip(&mut self) -> &mut dyn RangeChipOps<W, N> {
+        self
+    }
+
     fn assign_w(&mut self, w: &BigUint) -> AssignedInteger<W, N> {
         let info = self.info();
 

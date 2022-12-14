@@ -5,6 +5,7 @@ use num_integer::Integer;
 
 use super::base_chip::BaseChipOps;
 use super::ecc_chip::EccChipScalarOps;
+use super::integer_chip::IntegerChipOps;
 use crate::assign::AssignedCondition;
 use crate::assign::AssignedValue;
 use crate::circuit::ecc_chip::EccChipBaseOps;
@@ -13,109 +14,10 @@ use crate::pair;
 use crate::utils::{bn_to_field, field_to_bn};
 
 impl<C: CurveAffine> EccChipBaseOps<C, C::Scalar> for NativeScalarEccContext<C> {
-    fn assign_constant_point(
+    fn base_integer_chip(
         &mut self,
-        c: &<C as CurveAffine>::CurveExt,
-    ) -> crate::assign::AssignedPoint<C, C::Scalar> {
-        self.0.assign_constant_point(c)
-    }
-
-    fn assign_point(
-        &mut self,
-        c: &<C as CurveAffine>::CurveExt,
-    ) -> crate::assign::AssignedPoint<C, C::Scalar> {
-        self.0.assign_point(c)
-    }
-
-    fn assign_identity(&mut self) -> crate::assign::AssignedPointWithCurvature<C, C::Scalar> {
-        self.0.assign_identity()
-    }
-
-    fn ecc_encode(
-        &mut self,
-        p: &crate::assign::AssignedPoint<C, C::Scalar>,
-    ) -> Vec<AssignedValue<C::Scalar>> {
-        self.0.ecc_encode(p)
-    }
-
-    fn bisec_point(
-        &mut self,
-        cond: &AssignedCondition<C::Scalar>,
-        a: &crate::assign::AssignedPoint<C, C::Scalar>,
-        b: &crate::assign::AssignedPoint<C, C::Scalar>,
-    ) -> crate::assign::AssignedPoint<C, C::Scalar> {
-        self.0.bisec_point(cond, a, b)
-    }
-
-    fn bisec_curvature(
-        &mut self,
-        cond: &AssignedCondition<C::Scalar>,
-        a: &crate::assign::AssignedCurvature<C, C::Scalar>,
-        b: &crate::assign::AssignedCurvature<C, C::Scalar>,
-    ) -> crate::assign::AssignedCurvature<C, C::Scalar> {
-        self.0.bisec_curvature(cond, a, b)
-    }
-
-    fn to_point_with_curvature(
-        &mut self,
-        a: crate::assign::AssignedPoint<C, C::Scalar>,
-    ) -> crate::assign::AssignedPointWithCurvature<C, C::Scalar> {
-        self.0.to_point_with_curvature(a)
-    }
-
-    fn bisec_point_with_curvature(
-        &mut self,
-        cond: &AssignedCondition<C::Scalar>,
-        a: &crate::assign::AssignedPointWithCurvature<C, C::Scalar>,
-        b: &crate::assign::AssignedPointWithCurvature<C, C::Scalar>,
-    ) -> crate::assign::AssignedPointWithCurvature<C, C::Scalar> {
-        self.0.bisec_point_with_curvature(cond, a, b)
-    }
-
-    fn ecc_add(
-        &mut self,
-        a: &crate::assign::AssignedPointWithCurvature<C, C::Scalar>,
-        b: &crate::assign::AssignedPoint<C, C::Scalar>,
-    ) -> crate::assign::AssignedPoint<C, C::Scalar> {
-        self.0.ecc_add(a, b)
-    }
-
-    fn ecc_double(
-        &mut self,
-        a: &crate::assign::AssignedPointWithCurvature<C, C::Scalar>,
-    ) -> crate::assign::AssignedPoint<C, C::Scalar> {
-        self.0.ecc_double(a)
-    }
-
-    fn ecc_assert_equal(
-        &mut self,
-        a: &crate::assign::AssignedPoint<C, C::Scalar>,
-        b: &crate::assign::AssignedPoint<C, C::Scalar>,
-    ) {
-        self.0.ecc_assert_equal(a, b)
-    }
-
-    fn ecc_neg(
-        &mut self,
-        a: &crate::assign::AssignedPoint<C, C::Scalar>,
-    ) -> crate::assign::AssignedPoint<C, C::Scalar> {
-        self.0.ecc_neg(a)
-    }
-
-    fn ecc_reduce(
-        &mut self,
-        a: &crate::assign::AssignedPoint<C, C::Scalar>,
-    ) -> crate::assign::AssignedPoint<C, C::Scalar> {
-        self.0.ecc_reduce(a)
-    }
-
-    fn lambda_to_point(
-        &mut self,
-        lambda: &crate::assign::AssignedCurvature<C, C::Scalar>,
-        a: &crate::assign::AssignedPoint<C, C::Scalar>,
-        b: &crate::assign::AssignedPoint<C, C::Scalar>,
-    ) -> crate::assign::AssignedPoint<C, C::Scalar> {
-        self.0.lambda_to_point(lambda, a, b)
+    ) -> &mut dyn IntegerChipOps<<C as CurveAffine>::Base, C::Scalar> {
+        &mut self.0
     }
 }
 

@@ -1,6 +1,8 @@
 use crate::assign::{AssignedCondition, AssignedG2Affine};
 use crate::circuit::base_chip::{BaseChip, BaseChipConfig, BaseChipOps};
 use crate::circuit::ecc_chip::EccChipBaseOps;
+use crate::circuit::fq12::Fq2ChipOps;
+use crate::circuit::pairing_chip::PairingChipOps;
 use crate::circuit::range_chip::RangeChip;
 use crate::circuit::range_chip::RangeChipConfig;
 use crate::context::{Context, NativeScalarEccContext};
@@ -83,11 +85,11 @@ fn test_native_pairing_chip() {
     let a = G1::random(&mut thread_rng());
     let b = G2Affine::from(G2::random(&mut thread_rng()));
 
-    let bx = ctx.0.fq2_assign_constant(
+    let bx = ctx.fq2_assign_constant(
         b.coordinates().unwrap().x().c0,
         b.coordinates().unwrap().x().c1,
     );
-    let by = ctx.0.fq2_assign_constant(
+    let by = ctx.fq2_assign_constant(
         b.coordinates().unwrap().y().c0,
         b.coordinates().unwrap().y().c1,
     );
