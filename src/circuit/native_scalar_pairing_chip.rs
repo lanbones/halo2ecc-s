@@ -3,7 +3,7 @@
 */
 use crate::assign::{AssignedFq6, AssignedG2, AssignedG2Affine, AssignedG2Prepared};
 use crate::circuit::integer_chip::IntegerChipOps;
-use crate::context::Context;
+use crate::context::IntegerContext;
 use crate::utils::bn_to_field;
 use crate::{
     assign::{AssignedFq12, AssignedFq2, AssignedG1Affine},
@@ -15,7 +15,7 @@ use num_bigint::BigUint;
 use super::base_chip::BaseChipOps;
 use super::bn256_constants::*;
 
-impl<W: BaseExt, N: FieldExt> Context<W, N> {
+impl<W: BaseExt, N: FieldExt> IntegerContext<W, N> {
     pub fn fq2_assert_equal(&mut self, x: &AssignedFq2<W, N>, y: &AssignedFq2<W, N>) {
         self.assert_int_equal(&x.0, &y.0);
         self.assert_int_equal(&x.1, &y.1);
@@ -95,7 +95,7 @@ impl<W: BaseExt, N: FieldExt> Context<W, N> {
     }
 }
 
-impl<W: BaseExt, N: FieldExt> Context<W, N> {
+impl<W: BaseExt, N: FieldExt> IntegerContext<W, N> {
     pub fn fq6_assert_equal(&mut self, x: &AssignedFq6<W, N>, y: &AssignedFq6<W, N>) {
         self.fq2_assert_equal(&x.0, &y.0);
         self.fq2_assert_equal(&x.1, &y.1);
@@ -287,7 +287,7 @@ impl<W: BaseExt, N: FieldExt> Context<W, N> {
     }
 }
 
-impl<W: BaseExt, N: FieldExt> Context<W, N> {
+impl<W: BaseExt, N: FieldExt> IntegerContext<W, N> {
     pub fn fq12_assert_one(&mut self, x: &AssignedFq12<W, N>) {
         let one = self.fq12_assign_one();
         self.fq12_assert_eq(x, &one);
@@ -610,7 +610,7 @@ impl<C: CurveAffine> NativeScalarEccContext<C> {
         g2: &AssignedG2Affine<C, C::Scalar>,
     ) -> AssignedG2<C, C::Scalar> {
         // not support identity
-        self.0.assert_false(&g2.z);
+        self.0.ctx.borrow_mut().assert_false(&g2.z);
         let z = self.0.fq2_assign_one();
 
         AssignedG2::new(g2.x.clone(), g2.y.clone(), z)
@@ -717,7 +717,7 @@ impl<C: CurveAffine> NativeScalarEccContext<C> {
         let mut pairs = vec![];
         for &(p, q) in terms {
             // not support identity
-            self.0.assert_false(&p.z);
+            self.0.ctx.borrow_mut().assert_false(&p.z);
             pairs.push((p, q.coeffs.iter()));
         }
 

@@ -1,5 +1,5 @@
 use halo2_proofs::{
-    arithmetic::{BaseExt, FieldExt},
+    arithmetic::FieldExt,
     plonk::{Advice, Column, ConstraintSystem, Fixed},
     poly::Rotation,
 };
@@ -466,7 +466,7 @@ pub trait BaseChipOps<N: FieldExt> {
     }
 }
 
-impl<W: BaseExt, N: FieldExt> BaseChipOps<N> for Context<W, N> {
+impl<N: FieldExt> BaseChipOps<N> for Context<N> {
     fn var_columns(&mut self) -> usize {
         VAR_COLUMNS
     }

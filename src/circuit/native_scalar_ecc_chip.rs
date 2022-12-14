@@ -308,7 +308,7 @@ impl<C: CurveAffine> EccChipOps<C> for NativeScalarEccContext<C> {
 
         let x = self.0.assign_int_constant(x);
         let y = self.0.assign_int_constant(y);
-        let z = self.0.assign_constant(z);
+        let z = self.0.ctx.borrow_mut().assign_constant(z);
 
         AssignedPoint::new(x, y, AssignedCondition(z))
     }
@@ -325,7 +325,7 @@ impl<C: CurveAffine> EccChipOps<C> for NativeScalarEccContext<C> {
 
         let x = self.0.assign_w(&field_to_bn(&x));
         let y = self.0.assign_w(&field_to_bn(&y));
-        let z = self.0.assign_bit(z);
+        let z = self.0.ctx.borrow_mut().assign_bit(z);
 
         // Constrain y^2 = x^3 + b
         // TODO: Optimize b
@@ -336,15 +336,15 @@ impl<C: CurveAffine> EccChipOps<C> for NativeScalarEccContext<C> {
         let right = self.0.int_add(&x3, &b);
 
         let eq = self.0.is_int_equal(&y2, &right);
-        let eq_or_identity = self.0.or(&eq, &z);
-        self.0.assert_true(&eq_or_identity);
+        let eq_or_identity = self.0.ctx.borrow_mut().or(&eq, &z);
+        self.0.ctx.borrow_mut().assert_true(&eq_or_identity);
 
         AssignedPoint::new(x, y, z)
     }
 
     fn assign_identity(&mut self) -> AssignedPointWithCurvature<C, C::ScalarExt> {
         let zero = self.0.assign_int_constant(C::Base::zero());
-        let one = self.0.assign_constant(C::ScalarExt::one());
+        let one = self.0.ctx.borrow_mut().assign_constant(C::ScalarExt::one());
 
         AssignedPointWithCurvature::new(
             zero.clone(),
@@ -370,7 +370,7 @@ impl<C: CurveAffine> EccChipOps<C> for NativeScalarEccContext<C> {
     ) -> AssignedPoint<C, C::ScalarExt> {
         let x = self.0.bisec_int(cond, &a.x, &b.x);
         let y = self.0.bisec_int(cond, &a.y, &b.y);
-        let z = self.0.bisec_cond(cond, &a.z, &b.z);
+        let z = self.0.ctx.borrow_mut().bisec_cond(cond, &a.z, &b.z);
 
         AssignedPoint::new(x, y, z)
     }
@@ -382,7 +382,7 @@ impl<C: CurveAffine> EccChipOps<C> for NativeScalarEccContext<C> {
         b: &AssignedCurvature<C, C::ScalarExt>,
     ) -> AssignedCurvature<C, C::ScalarExt> {
         let v = self.0.bisec_int(cond, &a.0, &b.0);
-        let z = self.0.bisec_cond(cond, &a.1, &b.1);
+        let z = self.0.ctx.borrow_mut().bisec_cond(cond, &a.1, &b.1);
 
         AssignedCurvature(v, z)
     }
@@ -395,7 +395,7 @@ impl<C: CurveAffine> EccChipOps<C> for NativeScalarEccContext<C> {
     ) -> AssignedPointWithCurvature<C, C::ScalarExt> {
         let x = self.0.bisec_int(cond, &a.x, &b.x);
         let y = self.0.bisec_int(cond, &a.y, &b.y);
-        let z = self.0.bisec_cond(cond, &a.z, &b.z);
+        let z = self.0.ctx.borrow_mut().bisec_cond(cond, &a.z, &b.z);
 
         let c = self.bisec_curvature(cond, &a.curvature, &b.curvature);
 
@@ -438,7 +438,7 @@ impl<C: CurveAffine> EccChipOps<C> for NativeScalarEccContext<C> {
         let (x_eq, tangent) = self.0.int_div(&diff_y, &diff_x);
 
         let y_eq = self.0.is_int_zero(&diff_y);
-        let eq = self.0.and(&x_eq, &y_eq);
+        let eq = self.0.ctx.borrow_mut().and(&x_eq, &y_eq);
 
         let tangent = AssignedCurvature(tangent, x_eq);
         let mut lambda = self.bisec_curvature(&eq, &a.curvature, &tangent);
@@ -458,7 +458,7 @@ impl<C: CurveAffine> EccChipOps<C> for NativeScalarEccContext<C> {
     ) -> AssignedPoint<C, C::ScalarExt> {
         let a_p = a.clone().to_point();
         let mut p = self.lambda_to_point(&a.curvature, &a_p, &a_p);
-        p.z = self.0.bisec_cond(&a.z, &a.z, &p.z);
+        p.z = self.0.ctx.borrow_mut().bisec_cond(&a.z, &a.z, &p.z);
 
         p
     }
@@ -470,14 +470,14 @@ impl<C: CurveAffine> EccChipOps<C> for NativeScalarEccContext<C> {
     ) {
         let eq_x = self.0.is_int_equal(&a.x, &b.x);
         let eq_y = self.0.is_int_equal(&a.y, &b.y);
-        let eq_z = self.0.xnor(&a.z, &b.z);
-        let eq_xy = self.0.and(&eq_x, &eq_y);
-        let eq_xyz = self.0.and(&eq_xy, &eq_z);
+        let eq_z = self.0.ctx.borrow_mut().xnor(&a.z, &b.z);
+        let eq_xy = self.0.ctx.borrow_mut().and(&eq_x, &eq_y);
+        let eq_xyz = self.0.ctx.borrow_mut().and(&eq_xy, &eq_z);
 
-        let is_both_identity = self.0.and(&a.z, &b.z);
-        let eq = self.0.or(&eq_xyz, &is_both_identity);
+        let is_both_identity = self.0.ctx.borrow_mut().and(&a.z, &b.z);
+        let eq = self.0.ctx.borrow_mut().or(&eq_xyz, &is_both_identity);
 
-        self.0.assert_true(&eq)
+        self.0.ctx.borrow_mut().assert_true(&eq)
     }
 
     fn ecc_neg(&mut self, a: &AssignedPoint<C, C::ScalarExt>) -> AssignedPoint<C, C::ScalarExt> {
@@ -521,11 +521,11 @@ impl<C: CurveAffine> EccChipOps<C> for NativeScalarEccContext<C> {
             } else {
                 C::ScalarExt::zero()
             };
-            let b0 = self.0.assign_bit(b0);
-            let b1 = self.0.assign_bit(b1);
+            let b0 = self.0.ctx.borrow_mut().assign_bit(b0);
+            let b1 = self.0.ctx.borrow_mut().assign_bit(b1);
             let v_next: C::ScalarExt = bn_to_field(&(&s_bn >> (i * 2 + 2)));
 
-            let cells = self.0.one_line_with_last(
+            let cells = self.0.ctx.borrow_mut().one_line_with_last(
                 vec![
                     pair!(v_next.clone(), four),
                     pair!(&b1.0, two),
@@ -543,15 +543,22 @@ impl<C: CurveAffine> EccChipOps<C> for NativeScalarEccContext<C> {
         }
 
         if <C::ScalarExt as PrimeField>::NUM_BITS.is_odd() {
-            self.0.assert_bit(&v);
+            self.0.ctx.borrow_mut().assert_bit(&v);
             bits.push(AssignedCondition(v));
         } else {
-            self.0.assert_constant(&v, C::ScalarExt::zero())
+            self.0
+                .ctx
+                .borrow_mut()
+                .assert_constant(&v, C::ScalarExt::zero())
         }
 
         let rem = <C::ScalarExt as PrimeField>::NUM_BITS as usize % WINDOW_SIZE;
         if rem > 0 {
-            let zero = self.0.assign_constant(C::ScalarExt::zero());
+            let zero = self
+                .0
+                .ctx
+                .borrow_mut()
+                .assign_constant(C::ScalarExt::zero());
             for _ in 0..WINDOW_SIZE - rem {
                 bits.push(AssignedCondition(zero));
             }
@@ -597,21 +604,21 @@ impl<C: CurveAffine> EccChipOps<C> for NativeScalarEccContext<C> {
     ) -> Vec<AssignedValue<C::ScalarExt>> {
         let p = self.ecc_reduce(&p);
         let shift = bn_to_field(&(BigUint::from(1u64) << self.0.info().limb_bits));
-        let s0 = self.0.sum_with_constant(
+        let s0 = self.0.ctx.borrow_mut().sum_with_constant(
             vec![
                 (&p.x.limbs_le[0], C::ScalarExt::one()),
                 (&p.x.limbs_le[1], shift),
             ],
             None,
         );
-        let s1 = self.0.sum_with_constant(
+        let s1 = self.0.ctx.borrow_mut().sum_with_constant(
             vec![
                 (&p.x.limbs_le[2], C::ScalarExt::one()),
                 (&p.y.limbs_le[0], shift),
             ],
             None,
         );
-        let s2 = self.0.sum_with_constant(
+        let s2 = self.0.ctx.borrow_mut().sum_with_constant(
             vec![
                 (&p.y.limbs_le[1], C::ScalarExt::one()),
                 (&p.y.limbs_le[2], shift),

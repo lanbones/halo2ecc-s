@@ -5,14 +5,12 @@ use num_integer::Integer;
 use super::{base_chip::BaseChipOps, range_chip::RangeChipOps};
 use crate::{
     assign::{AssignedCondition, AssignedInteger, AssignedValue},
-    context::Context,
+    context::IntegerContext,
     pair,
     utils::{bn_to_field, field_to_bn},
 };
 
 pub trait IntegerChipOps<W: BaseExt, N: FieldExt> {
-    fn base_chip(&self) -> &dyn BaseChipOps<N>;
-    fn range_chip(&self) -> &dyn RangeChipOps<W, N>;
     fn assign_w(&mut self, w: &BigUint) -> AssignedInteger<W, N>;
     fn assign_d(&mut self, v: &BigUint) -> (Vec<AssignedValue<N>>, AssignedValue<N>);
     fn conditionally_reduce(&mut self, a: AssignedInteger<W, N>) -> AssignedInteger<W, N>;
@@ -67,7 +65,7 @@ pub trait IntegerChipOps<W: BaseExt, N: FieldExt> {
     fn get_w(&self, a: &AssignedInteger<W, N>) -> W;
 }
 
-impl<W: BaseExt, N: FieldExt> Context<W, N> {
+impl<W: BaseExt, N: FieldExt> IntegerContext<W, N> {
     fn add_constraints_for_mul_equation_on_limbs(
         &mut self,
         a: &AssignedInteger<W, N>,
@@ -90,7 +88,7 @@ impl<W: BaseExt, N: FieldExt> Context<W, N> {
 
             let r_bound = usize::min(pos + 1, info.limbs as usize);
             let l_bound = pos.checked_sub(info.limbs as usize - 1).unwrap_or(0);
-            let l = self.mul_add_with_next_line(
+            let l = self.ctx.borrow_mut().mul_add_with_next_line(
                 (l_bound..r_bound)
                     .map(|i| {
                         (
@@ -109,7 +107,7 @@ impl<W: BaseExt, N: FieldExt> Context<W, N> {
         let borrow = N::from(info.limbs) * info.limb_modulus_n + N::from(2u64);
 
         // check sum limb[0]
-        let u = self.sum_with_constant(
+        let u = self.ctx.borrow_mut().sum_with_constant(
             vec![(&limbs[0], one), (&rem.limbs_le[0], -one)],
             Some(info.limb_modulus_n * borrow),
         );
@@ -119,7 +117,7 @@ impl<W: BaseExt, N: FieldExt> Context<W, N> {
         let mut v_h = self.assign_common(&v_h_bn);
         let mut v_l = self.assign_nonleading_limb(&v_l_bn);
 
-        self.one_line_with_last(
+        self.ctx.borrow_mut().one_line_with_last(
             vec![
                 pair!(&v_h, info.limb_coeffs[2]),
                 pair!(&v_l, info.limb_coeffs[1]),
@@ -131,7 +129,7 @@ impl<W: BaseExt, N: FieldExt> Context<W, N> {
 
         // check sum limb[1..] with carry
         for i in 1..self.info().limbs as usize {
-            let u = self.sum_with_constant(
+            let u = self.ctx.borrow_mut().sum_with_constant(
                 vec![
                     (&limbs[i], one),
                     (&rem.limbs_le[i], -one),
@@ -147,8 +145,7 @@ impl<W: BaseExt, N: FieldExt> Context<W, N> {
             v_h = self.assign_common(&v_h_bn);
             v_l = self.assign_nonleading_limb(&v_l_bn);
 
-            BaseChipOps::one_line_with_last(
-                self,
+            self.ctx.borrow_mut().one_line_with_last(
                 vec![
                     pair!(&v_h, info.limb_coeffs[2]),
                     pair!(&v_l, info.limb_coeffs[1]),
@@ -170,7 +167,7 @@ impl<W: BaseExt, N: FieldExt> Context<W, N> {
         let info = self.info();
         let zero = N::zero();
         let one = N::one();
-        self.one_line(
+        self.ctx.borrow_mut().one_line(
             vec![
                 pair!(&a.native, zero),
                 pair!(&b.native, zero),
@@ -192,15 +189,7 @@ impl<W: BaseExt, N: FieldExt> Context<W, N> {
     }
 }
 
-impl<W: BaseExt, N: FieldExt> IntegerChipOps<W, N> for Context<W, N> {
-    fn base_chip(&self) -> &dyn BaseChipOps<N> {
-        self
-    }
-
-    fn range_chip(&self) -> &dyn RangeChipOps<W, N> {
-        self
-    }
-
+impl<W: BaseExt, N: FieldExt> IntegerChipOps<W, N> for IntegerContext<W, N> {
     fn assign_w(&mut self, w: &BigUint) -> AssignedInteger<W, N> {
         let info = self.info();
 
@@ -217,7 +206,10 @@ impl<W: BaseExt, N: FieldExt> IntegerChipOps<W, N> for Context<W, N> {
         ));
 
         let schemas = limbs.iter().zip(info.limb_coeffs.clone());
-        let native = self.sum_with_constant(schemas.collect(), None);
+        let native = self
+            .ctx
+            .borrow_mut()
+            .sum_with_constant(schemas.collect(), None);
 
         AssignedInteger::new(limbs.try_into().unwrap(), native, 1)
     }
@@ -238,7 +230,10 @@ impl<W: BaseExt, N: FieldExt> IntegerChipOps<W, N> for Context<W, N> {
         ));
 
         let schemas = limbs.iter().zip(info.limb_coeffs.clone());
-        let native = self.sum_with_constant(schemas.collect(), None);
+        let native = self
+            .ctx
+            .borrow_mut()
+            .sum_with_constant(schemas.collect(), None);
         (limbs.try_into().unwrap(), native)
     }
 
@@ -263,7 +258,7 @@ impl<W: BaseExt, N: FieldExt> IntegerChipOps<W, N> for Context<W, N> {
         let assigned_d = self.assign_common(&d);
 
         // Constrain on native.
-        self.one_line_with_last(
+        self.ctx.borrow_mut().one_line_with_last(
             vec![
                 pair!(&assigned_d, info.w_native),
                 pair!(&assigned_rem.native, one),
@@ -311,7 +306,7 @@ impl<W: BaseExt, N: FieldExt> IntegerChipOps<W, N> for Context<W, N> {
             let v = self.assign_nonleading_limb(&v);
 
             // constrains on limb_modulus
-            self.one_line_with_last(
+            self.ctx.borrow_mut().one_line_with_last(
                 vec![
                     pair!(&assigned_d, info.w_modulus_limbs_le[i]),
                     pair!(&assigned_rem.limbs_le[i], one),
@@ -353,12 +348,15 @@ impl<W: BaseExt, N: FieldExt> IntegerChipOps<W, N> for Context<W, N> {
         let mut limbs = vec![];
 
         for i in 0..self.info().limbs as usize {
-            let value = self.add(&a.limbs_le[i], &b.limbs_le[i]);
+            let value = self.ctx.borrow_mut().add(&a.limbs_le[i], &b.limbs_le[i]);
             limbs.push(value)
         }
 
         let schemas = limbs.iter().zip(info.limb_coeffs.clone());
-        let native = self.sum_with_constant(schemas.collect(), None);
+        let native = self
+            .ctx
+            .borrow_mut()
+            .sum_with_constant(schemas.collect(), None);
 
         let res = AssignedInteger::new(limbs.try_into().unwrap(), native, a.times + b.times);
 
@@ -379,7 +377,7 @@ impl<W: BaseExt, N: FieldExt> IntegerChipOps<W, N> for Context<W, N> {
 
         let mut limbs = vec![];
         for i in 0..self.info().limbs as usize {
-            let cell = self.sum_with_constant(
+            let cell = self.ctx.borrow_mut().sum_with_constant(
                 vec![(&a.limbs_le[i], one), (&b.limbs_le[i], -one)],
                 Some(upper_limbs[i]),
             );
@@ -387,7 +385,10 @@ impl<W: BaseExt, N: FieldExt> IntegerChipOps<W, N> for Context<W, N> {
         }
 
         let schemas = limbs.iter().zip(info.limb_coeffs.clone());
-        let native = self.sum_with_constant(schemas.collect(), None);
+        let native = self
+            .ctx
+            .borrow_mut()
+            .sum_with_constant(schemas.collect(), None);
 
         let res = AssignedInteger::new(limbs.try_into().unwrap(), native, a.times + b.times + 1);
         self.conditionally_reduce(res)
@@ -403,12 +404,18 @@ impl<W: BaseExt, N: FieldExt> IntegerChipOps<W, N> for Context<W, N> {
 
         let mut limbs = vec![];
         for i in 0..self.info().limbs as usize {
-            let cell = self.sum_with_constant(vec![(&a.limbs_le[i], -one)], Some(upper_limbs[i]));
+            let cell = self
+                .ctx
+                .borrow_mut()
+                .sum_with_constant(vec![(&a.limbs_le[i], -one)], Some(upper_limbs[i]));
             limbs.push(cell);
         }
 
         let schemas = limbs.iter().zip(info.limb_coeffs.clone());
-        let native = self.sum_with_constant(schemas.collect(), None);
+        let native = self
+            .ctx
+            .borrow_mut()
+            .sum_with_constant(schemas.collect(), None);
 
         let res = AssignedInteger::new(limbs.try_into().unwrap(), native, a.times + 1);
         self.conditionally_reduce(res)
@@ -437,7 +444,7 @@ impl<W: BaseExt, N: FieldExt> IntegerChipOps<W, N> for Context<W, N> {
         //TODO: optimize
         let one = self.assign_int_constant(W::one());
         let (c, v) = self.int_div(&one, x);
-        self.assert_false(&c);
+        self.ctx.borrow_mut().assert_false(&c);
         v
     }
 
@@ -457,16 +464,16 @@ impl<W: BaseExt, N: FieldExt> IntegerChipOps<W, N> for Context<W, N> {
 
         let b = self.reduce(b);
         let is_b_zero = self.is_int_zero(&b);
-        let a_coeff = self.not(&is_b_zero);
+        let a_coeff = self.ctx.borrow_mut().not(&is_b_zero);
 
         let a = {
             let a = self.reduce(a);
             let mut limbs_le = vec![];
             for i in 0..self.info().limbs as usize {
-                let cell = self.mul(&a.limbs_le[i], &a_coeff.0);
+                let cell = self.ctx.borrow_mut().mul(&a.limbs_le[i], &a_coeff.0);
                 limbs_le.push(cell);
             }
-            let native = self.mul(&a.native, &a_coeff.0);
+            let native = self.ctx.borrow_mut().mul(&a.native, &a_coeff.0);
             AssignedInteger::<W, N>::new(limbs_le.try_into().unwrap(), native, a.times)
         };
 
@@ -491,20 +498,29 @@ impl<W: BaseExt, N: FieldExt> IntegerChipOps<W, N> for Context<W, N> {
     fn is_pure_zero(&mut self, a: &AssignedInteger<W, N>) -> AssignedCondition<N> {
         let one = N::one();
 
-        let sum = self.sum_with_constant(a.limbs_le.iter().map(|v| (v, one)).collect(), None);
-        self.is_zero(&sum)
+        let sum = self
+            .ctx
+            .borrow_mut()
+            .sum_with_constant(a.limbs_le.iter().map(|v| (v, one)).collect(), None);
+        self.ctx.borrow_mut().is_zero(&sum)
     }
 
     fn is_pure_w_modulus(&mut self, a: &AssignedInteger<W, N>) -> AssignedCondition<N> {
         let info = self.info();
 
-        let native_diff = self.add_constant(&a.native, -info.w_native);
-        let mut is_eq = self.is_zero(&native_diff);
+        let native_diff = self
+            .ctx
+            .borrow_mut()
+            .add_constant(&a.native, -info.w_native);
+        let mut is_eq = self.ctx.borrow_mut().is_zero(&native_diff);
 
         for i in 0..info.pure_w_check_limbs as usize {
-            let limb_diff = self.add_constant(&a.limbs_le[i], -info.w_modulus_limbs_le[i]);
-            let is_limb_eq = self.is_zero(&limb_diff);
-            is_eq = self.and(&is_eq, &is_limb_eq);
+            let limb_diff = self
+                .ctx
+                .borrow_mut()
+                .add_constant(&a.limbs_le[i], -info.w_modulus_limbs_le[i]);
+            let is_limb_eq = self.ctx.borrow_mut().is_zero(&limb_diff);
+            is_eq = self.ctx.borrow_mut().and(&is_eq, &is_limb_eq);
         }
 
         is_eq
@@ -515,7 +531,7 @@ impl<W: BaseExt, N: FieldExt> IntegerChipOps<W, N> for Context<W, N> {
         let is_zero = self.is_pure_zero(&a);
         let is_w_modulus = self.is_pure_w_modulus(&a);
 
-        self.or(&is_zero, &is_w_modulus)
+        self.ctx.borrow_mut().or(&is_zero, &is_w_modulus)
     }
 
     fn assign_int_constant(&mut self, w: W) -> AssignedInteger<W, N> {
@@ -526,11 +542,14 @@ impl<W: BaseExt, N: FieldExt> IntegerChipOps<W, N> for Context<W, N> {
 
         let mut limbs = vec![];
         for limb in limbs_value {
-            let cell = self.assign_constant(limb);
+            let cell = self.ctx.borrow_mut().assign_constant(limb);
             limbs.push(cell);
         }
 
-        let native = self.assign_constant(bn_to_field(&(w % &info.n_modulus)));
+        let native = self
+            .ctx
+            .borrow_mut()
+            .assign_constant(bn_to_field(&(w % &info.n_modulus)));
 
         AssignedInteger::new(limbs.try_into().unwrap(), native, 1)
     }
@@ -541,8 +560,10 @@ impl<W: BaseExt, N: FieldExt> IntegerChipOps<W, N> for Context<W, N> {
         let diff = self.int_sub(a, b);
         let diff = self.reduce(&diff);
 
-        self.assert_constant(&diff.native, zero);
-        self.assert_constant(&diff.limbs_le[0], zero);
+        self.ctx.borrow_mut().assert_constant(&diff.native, zero);
+        self.ctx
+            .borrow_mut()
+            .assert_constant(&diff.limbs_le[0], zero);
     }
 
     fn int_square(&mut self, a: &AssignedInteger<W, N>) -> AssignedInteger<W, N> {
@@ -573,12 +594,18 @@ impl<W: BaseExt, N: FieldExt> IntegerChipOps<W, N> for Context<W, N> {
 
         let mut limbs = vec![];
         for i in 0..self.info().limbs as usize {
-            let cell = self.sum_with_constant(vec![(&a.limbs_le[i], N::from(b as u64))], None);
+            let cell = self
+                .ctx
+                .borrow_mut()
+                .sum_with_constant(vec![(&a.limbs_le[i], N::from(b as u64))], None);
             limbs.push(cell);
         }
 
         let schemas = limbs.iter().zip(info.limb_coeffs.clone());
-        let native = self.sum_with_constant(schemas.collect(), None);
+        let native = self
+            .ctx
+            .borrow_mut()
+            .sum_with_constant(schemas.collect(), None);
 
         let res = AssignedInteger::new(limbs.try_into().unwrap(), native, a.times * b);
         let res = self.conditionally_reduce(res);
@@ -593,10 +620,13 @@ impl<W: BaseExt, N: FieldExt> IntegerChipOps<W, N> for Context<W, N> {
     ) -> AssignedInteger<W, N> {
         let mut limbs = vec![];
         for i in 0..self.info().limbs as usize {
-            let cell = self.bisec(cond, &a.limbs_le[i], &b.limbs_le[i]);
+            let cell = self
+                .ctx
+                .borrow_mut()
+                .bisec(cond, &a.limbs_le[i], &b.limbs_le[i]);
             limbs.push(cell);
         }
-        let native = self.bisec(cond, &a.native, &b.native);
+        let native = self.ctx.borrow_mut().bisec(cond, &a.native, &b.native);
 
         AssignedInteger::new(
             limbs.try_into().unwrap(),

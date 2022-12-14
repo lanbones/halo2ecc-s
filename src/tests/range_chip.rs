@@ -1,8 +1,8 @@
 use crate::circuit::base_chip::{BaseChip, BaseChipConfig};
 use crate::circuit::range_chip::{RangeChip, RangeChipOps};
 use crate::circuit::range_chip::{RangeChipConfig, MAX_CHUNKS};
-use crate::context::Context;
 use crate::context::Records;
+use crate::context::{Context, IntegerContext};
 use crate::tests::random_fq;
 use crate::utils::field_to_bn;
 use ark_std::{end_timer, start_timer};
@@ -15,6 +15,7 @@ use halo2_proofs::{
 };
 use num_bigint::BigUint;
 use num_integer::Integer;
+use std::cell::RefCell;
 use std::marker::PhantomData;
 use std::sync::Arc;
 
@@ -74,7 +75,7 @@ impl<W: FieldExt, N: FieldExt> Circuit<N> for TestCircuit<W, N> {
 
 #[test]
 fn test_range_chip() {
-    let ctx = Context::<Fq, Fr>::new_with_range_info();
+    let ctx = Context::new();
 
     let a = field_to_bn(&random_fq());
     let b = field_to_bn(&random_fq());
@@ -86,13 +87,17 @@ fn test_range_chip() {
     let n = 10;
 
     let mut threads = vec![];
-    let limbs = ctx.info().limbs;
-    let non_leading_bits = (limbs - 1) * ctx.info().limb_bits;
     for i in 0..n {
         let step = c / n;
         let start = i * step * 2;
         let mut ctx = ctx.clone();
         *ctx.range_offset = start as usize;
+
+        let mut ctx =
+            IntegerContext::<halo2_proofs::pairing::bn256::Fq, Fr>::new(RefCell::new(ctx));
+
+        let limbs = ctx.info().limbs;
+        let non_leading_bits = (limbs - 1) * ctx.info().limb_bits;
         let common = &a & ((BigUint::from(1u64) << ctx.info().limbs) - 1u64);
         let a_leading = &a >> non_leading_bits;
         let b_leading = &b >> non_leading_bits;
@@ -106,7 +111,7 @@ fn test_range_chip() {
                 ctx.assign_w_ceil_leading_limb(&r_leading);
                 ctx.assign_d_leading_limb(&d_leading);
             }
-            assert!(*ctx.range_offset as u64 <= start + step);
+            assert!(*ctx.ctx.borrow().range_offset as u64 <= start + step);
         });
         threads.push(t);
     }
@@ -119,7 +124,10 @@ fn test_range_chip() {
 
     const K: u32 = 20;
     let circuit = TestCircuit::<Fq, Fr> {
-        records: Arc::try_unwrap(ctx.records).unwrap().into_inner().unwrap(),
+        records: Arc::try_unwrap(ctx.records)
+            .unwrap()
+            .into_inner()
+            .unwrap(),
         _phantom: PhantomData,
     };
     let prover = match MockProver::run(K, &circuit, vec![]) {

@@ -11,20 +11,20 @@ use halo2_proofs::{
     circuit::{AssignedCell, Region},
     plonk::Error,
 };
-use std::fmt::{Display, Formatter};
-use std::marker::PhantomData;
 use std::sync::{Arc, Mutex};
+use std::{
+    cell::RefCell,
+    fmt::{Display, Formatter},
+};
 
 #[derive(Debug, Clone)]
-pub struct Context<W: BaseExt, N: FieldExt> {
+pub struct Context<N: FieldExt> {
     pub records: Arc<Mutex<Records<N>>>,
     pub base_offset: Box<usize>,
     pub range_offset: Box<usize>,
-    pub range_info: Option<Arc<RangeInfo<W, N>>>,
-    _mark: PhantomData<W>,
 }
 
-impl<W: BaseExt, N: FieldExt> Display for Context<W, N> {
+impl<N: FieldExt> Display for Context<N> {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         write!(
             f,
@@ -34,36 +34,44 @@ impl<W: BaseExt, N: FieldExt> Display for Context<W, N> {
     }
 }
 
-#[repr(transparent)]
-pub struct NativeScalarEccContext<C: CurveAffine>(
-    pub Context<<C as CurveAffine>::Base, <C as CurveAffine>::ScalarExt>,
-);
-
-impl<W: BaseExt, N: FieldExt> Context<W, N> {
+impl<N: FieldExt> Context<N> {
     pub fn new() -> Self {
         Self {
             records: Arc::new(Mutex::new(Records::default())),
             base_offset: Box::new(0),
             range_offset: Box::new(0),
-            range_info: None,
-            _mark: PhantomData,
-        }
-    }
-
-    pub fn new_with_range_info() -> Self {
-        const OVERFLOW_BITS: u64 = 6;
-        Self {
-            records: Arc::new(Mutex::new(Records::default())),
-            base_offset: Box::new(0),
-            range_offset: Box::new(0),
-            range_info: Some(Arc::new(RangeInfo::<W, N>::new(
-                COMMON_RANGE_BITS,
-                OVERFLOW_BITS,
-            ))),
-            _mark: PhantomData,
         }
     }
 }
+
+#[derive(Debug, Clone)]
+pub struct IntegerContext<W: BaseExt, N: FieldExt> {
+    pub ctx: RefCell<Context<N>>,
+    pub info: Arc<RangeInfo<W, N>>,
+}
+
+impl<W: BaseExt, N: FieldExt> IntegerContext<W, N> {
+    pub fn new(ctx: RefCell<Context<N>>) -> Self {
+        const OVERFLOW_BITS: u64 = 6;
+        Self::new_with_options(ctx, COMMON_RANGE_BITS, OVERFLOW_BITS)
+    }
+
+    pub fn new_with_options(
+        ctx: RefCell<Context<N>>,
+        common_range_bits: u64,
+        overflow_bits: u64,
+    ) -> Self {
+        Self {
+            ctx,
+            info: Arc::new(RangeInfo::<W, N>::new(common_range_bits, overflow_bits)),
+        }
+    }
+}
+
+#[repr(transparent)]
+pub struct NativeScalarEccContext<C: CurveAffine>(
+    pub IntegerContext<<C as CurveAffine>::Base, <C as CurveAffine>::ScalarExt>,
+);
 
 #[derive(Debug, Default, Clone)]
 pub struct Records<N: FieldExt> {

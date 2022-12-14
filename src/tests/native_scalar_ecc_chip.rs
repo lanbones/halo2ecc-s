@@ -3,8 +3,8 @@ use crate::circuit::base_chip::{BaseChip, BaseChipConfig, BaseChipOps};
 use crate::circuit::native_scalar_ecc_chip::EccChipOps;
 use crate::circuit::range_chip::RangeChip;
 use crate::circuit::range_chip::RangeChipConfig;
-use crate::context::Records;
 use crate::context::{Context, NativeScalarEccContext};
+use crate::context::{IntegerContext, Records};
 use crate::tests::random_fr;
 use ark_std::{end_timer, start_timer};
 use halo2_proofs::arithmetic::FieldExt;
@@ -15,6 +15,7 @@ use halo2_proofs::{
     dev::MockProver,
     plonk::{Circuit, ConstraintSystem, Error},
 };
+use std::cell::RefCell;
 use std::marker::PhantomData;
 use std::sync::Arc;
 
@@ -74,7 +75,9 @@ impl<W: FieldExt, N: FieldExt> Circuit<N> for TestCircuit<W, N> {
 
 #[test]
 fn test_native_ecc_chip() {
-    let mut ctx = NativeScalarEccContext::<G1Affine>(Context::new_with_range_info());
+    let ctx = RefCell::new(Context::new());
+    let ctx = IntegerContext::<halo2_proofs::pairing::bn256::Fq, Fr>::new(ctx);
+    let mut ctx = NativeScalarEccContext(ctx);
 
     let mut points = vec![];
     let mut scalars = vec![];
@@ -97,7 +100,7 @@ fn test_native_ecc_chip() {
         .collect::<Vec<_>>();
     let scalars = scalars
         .into_iter()
-        .map(|x| ctx.0.assign(x))
+        .map(|x| ctx.0.ctx.borrow_mut().assign(x))
         .collect::<Vec<_>>();
     let res: AssignedPoint<_, _> = ctx.msm(&points, &scalars);
     let res_expect: AssignedPoint<G1Affine, Fr> = ctx.assign_point(&acc);
@@ -105,11 +108,15 @@ fn test_native_ecc_chip() {
 
     end_timer!(timer);
 
-    println!("offset {} {}", ctx.0.range_offset, ctx.0.base_offset);
+    println!(
+        "offset {} {}",
+        ctx.0.ctx.borrow().range_offset,
+        ctx.0.ctx.borrow().base_offset
+    );
 
     const K: u32 = 22;
     let circuit = TestCircuit::<Fq, Fr> {
-        records: Arc::try_unwrap(ctx.0.records)
+        records: Arc::try_unwrap(ctx.0.ctx.into_inner().records)
             .unwrap()
             .into_inner()
             .unwrap(),

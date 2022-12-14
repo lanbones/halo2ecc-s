@@ -78,7 +78,7 @@ fn test_one_line_st() {
         result + next_var * next_coeff
     };
 
-    let ctx = Context::<Fr, Fr>::new();
+    let ctx = Context::<Fr>::new();
     {
         let ctx = &mut ctx.clone();
 
@@ -133,7 +133,7 @@ fn test_one_line_mt() {
     let timer = start_timer!(|| "setup");
     let c = 10000;
     let n = 10;
-    let ctx = Context::<Fr, Fr>::new();
+    let ctx = Context::<Fr>::new();
     for i in 0..n {
         let step = c / n;
         let start = i * step * 2;

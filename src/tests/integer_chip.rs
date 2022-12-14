@@ -2,8 +2,8 @@ use crate::circuit::base_chip::{BaseChip, BaseChipConfig, BaseChipOps};
 use crate::circuit::integer_chip::IntegerChipOps;
 use crate::circuit::range_chip::RangeChip;
 use crate::circuit::range_chip::RangeChipConfig;
-use crate::context::Context;
 use crate::context::Records;
+use crate::context::{Context, IntegerContext};
 use crate::tests::{random_bls12_381_fq, random_bls12_381_fr, random_fq};
 use crate::utils::field_to_bn;
 use ark_std::{end_timer, start_timer};
@@ -14,6 +14,7 @@ use halo2_proofs::{
     dev::MockProver,
     plonk::{Circuit, ConstraintSystem, Error},
 };
+use std::cell::RefCell;
 use std::marker::PhantomData;
 use std::sync::Arc;
 
@@ -73,7 +74,8 @@ impl<W: BaseExt, N: FieldExt> Circuit<N> for TestCircuit<W, N> {
 
 #[test]
 fn test_integer_chip_st() {
-    let mut ctx = Context::<halo2_proofs::pairing::bn256::Fq, Fr>::new_with_range_info();
+    let ctx = RefCell::new(Context::new());
+    let mut ctx = IntegerContext::<halo2_proofs::pairing::bn256::Fq, Fr>::new(ctx);
 
     let a = random_fq();
     let mut b = random_fq();
@@ -111,68 +113,14 @@ fn test_integer_chip_st() {
 
     let zero = ctx.int_sub(&a, &a);
     let (g1, _) = ctx.int_div(&a, &zero);
-    ctx.assert_true(&g1);
+    ctx.ctx.borrow_mut().assert_true(&g1);
 
     const K: u32 = 20;
     let circuit = TestCircuit::<halo2_proofs::pairing::bn256::Fq, Fr> {
-        records: Arc::try_unwrap(ctx.records).unwrap().into_inner().unwrap(),
-        _phantom: PhantomData,
-    };
-    let prover = match MockProver::run(K, &circuit, vec![]) {
-        Ok(prover) => prover,
-        Err(e) => panic!("{:#?}", e),
-    };
-    assert_eq!(prover.verify(), Ok(()));
-}
-
-#[test]
-fn test_bn256_fq_integer_chip_mt() {
-    let ctx = Context::<halo2_proofs::pairing::bn256::Fq, Fr>::new_with_range_info();
-
-    let a = random_fq();
-    let b = random_fq();
-    let ab = a * b;
-
-    let timer = start_timer!(|| "setup");
-    let unit = 170;
-    let c = 17000 / unit * unit;
-    let n = 10;
-
-    let mut threads = vec![];
-
-    for i in 0..n {
-        let step = c / n;
-        let start = i * step;
-        let mut ctx = ctx.clone();
-        *ctx.range_offset = start;
-        *ctx.base_offset = start;
-        let a = a.clone();
-        let b = b.clone();
-        let ab = ab.clone();
-        let t = std::thread::spawn(move || {
-            for _ in 0..step / unit {
-                let start_row = usize::max(*ctx.base_offset, *ctx.range_offset);
-                let a = ctx.assign_w(&field_to_bn(&a));
-                let b = ctx.assign_w(&field_to_bn(&b));
-                let ab0 = ctx.assign_w(&field_to_bn(&ab));
-                let ab1 = ctx.int_mul(&a, &b);
-                ctx.assert_int_equal(&ab0, &ab1);
-                let end_row = usize::max(*ctx.base_offset, *ctx.range_offset);
-                assert!(end_row - start_row <= unit);
-            }
-        });
-        threads.push(t);
-    }
-
-    for t in threads {
-        t.join().unwrap();
-    }
-
-    end_timer!(timer);
-
-    const K: u32 = 20;
-    let circuit = TestCircuit::<halo2_proofs::pairing::bn256::Fq, Fr> {
-        records: Arc::try_unwrap(ctx.records).unwrap().into_inner().unwrap(),
+        records: Arc::try_unwrap(ctx.ctx.into_inner().records)
+            .unwrap()
+            .into_inner()
+            .unwrap(),
         _phantom: PhantomData,
     };
     let prover = match MockProver::run(K, &circuit, vec![]) {
@@ -184,7 +132,8 @@ fn test_bn256_fq_integer_chip_mt() {
 
 #[test]
 fn test_bls12_381_fq_integer_chip_st() {
-    let mut ctx = Context::<halo2_proofs::pairing::bls12_381::Fq, Fr>::new_with_range_info();
+    let ctx = RefCell::new(Context::new());
+    let mut ctx = IntegerContext::<halo2_proofs::pairing::bls12_381::Fq, Fr>::new(ctx);
 
     for _ in 0..1000 {
         let a = random_bls12_381_fq();
@@ -195,8 +144,6 @@ fn test_bls12_381_fq_integer_chip_st() {
         let b = ctx.assign_w(&field_to_bn(&b));
         let ab0 = ctx.assign_w(&field_to_bn(&ab));
 
-        let range_offset_before = *ctx.range_offset;
-        let base_offset_before = *ctx.base_offset;
         let ab1 = ctx.int_mul(&a, &b);
 
         ctx.assert_int_equal(&ab0, &ab1);
@@ -204,7 +151,10 @@ fn test_bls12_381_fq_integer_chip_st() {
 
     const K: u32 = 20;
     let circuit = TestCircuit::<halo2_proofs::pairing::bls12_381::Fq, Fr> {
-        records: Arc::try_unwrap(ctx.records).unwrap().into_inner().unwrap(),
+        records: Arc::try_unwrap(ctx.ctx.into_inner().records)
+            .unwrap()
+            .into_inner()
+            .unwrap(),
         _phantom: PhantomData,
     };
     let prover = match MockProver::run(K, &circuit, vec![]) {
@@ -216,7 +166,8 @@ fn test_bls12_381_fq_integer_chip_st() {
 
 #[test]
 fn test_bls12_381_fr_integer_chip_st() {
-    let mut ctx = Context::<halo2_proofs::pairing::bls12_381::Fr, Fr>::new_with_range_info();
+    let ctx = RefCell::new(Context::new());
+    let mut ctx = IntegerContext::<halo2_proofs::pairing::bls12_381::Fr, Fr>::new(ctx);
 
     for _ in 0..1000 {
         let a = random_bls12_381_fr();
@@ -227,8 +178,6 @@ fn test_bls12_381_fr_integer_chip_st() {
         let b = ctx.assign_w(&field_to_bn(&b));
         let ab0 = ctx.assign_w(&field_to_bn(&ab));
 
-        let range_offset_before = *ctx.range_offset;
-        let base_offset_before = *ctx.base_offset;
         let ab1 = ctx.int_mul(&a, &b);
 
         ctx.assert_int_equal(&ab0, &ab1);
@@ -236,7 +185,10 @@ fn test_bls12_381_fr_integer_chip_st() {
 
     const K: u32 = 20;
     let circuit = TestCircuit::<halo2_proofs::pairing::bls12_381::Fr, Fr> {
-        records: Arc::try_unwrap(ctx.records).unwrap().into_inner().unwrap(),
+        records: Arc::try_unwrap(ctx.ctx.into_inner().records)
+            .unwrap()
+            .into_inner()
+            .unwrap(),
         _phantom: PhantomData,
     };
     let prover = match MockProver::run(K, &circuit, vec![]) {

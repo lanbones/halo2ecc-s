@@ -3,11 +3,11 @@ use crate::circuit::base_chip::{BaseChip, BaseChipConfig, BaseChipOps};
 use crate::circuit::native_scalar_ecc_chip::EccChipOps;
 use crate::circuit::range_chip::RangeChip;
 use crate::circuit::range_chip::RangeChipConfig;
-use crate::context::Records;
 use crate::context::{Context, NativeScalarEccContext};
+use crate::context::{IntegerContext, Records};
 use ark_std::{end_timer, start_timer};
 use halo2_proofs::arithmetic::{CurveAffine, FieldExt};
-use halo2_proofs::pairing::bn256::{Fq, Fr, G1Affine, G2Affine, G1, G2};
+use halo2_proofs::pairing::bn256::{Fq, Fr, G2Affine, G1, G2, G1Affine};
 use halo2_proofs::pairing::group::Group;
 use halo2_proofs::{
     circuit::{Layouter, SimpleFloorPlanner},
@@ -15,6 +15,7 @@ use halo2_proofs::{
     plonk::{Circuit, ConstraintSystem, Error},
 };
 use rand::thread_rng;
+use std::cell::RefCell;
 use std::marker::PhantomData;
 use std::sync::Arc;
 
@@ -74,7 +75,9 @@ impl<W: FieldExt, N: FieldExt> Circuit<N> for TestCircuit<W, N> {
 
 #[test]
 fn test_native_pairing_chip() {
-    let mut ctx = NativeScalarEccContext::<G1Affine>(Context::new_with_range_info());
+    let ctx = RefCell::new(Context::new());
+    let ctx = IntegerContext::<halo2_proofs::pairing::bn256::Fq, Fr>::new(ctx);
+    let mut ctx = NativeScalarEccContext::<G1Affine>(ctx);
 
     let a = G1::random(&mut thread_rng());
     let b = G2Affine::from(G2::random(&mut thread_rng()));
@@ -87,17 +90,25 @@ fn test_native_pairing_chip() {
         b.coordinates().unwrap().y().c0,
         b.coordinates().unwrap().y().c1,
     );
-    let b = AssignedG2Affine::new(bx, by, AssignedCondition(ctx.0.assign_constant(Fr::zero())));
+    let b = AssignedG2Affine::new(
+        bx,
+        by,
+        AssignedCondition(ctx.0.ctx.borrow_mut().assign_constant(Fr::zero())),
+    );
     let neg_a = ctx.assign_point(&-a);
     let a = ctx.assign_point(&a);
 
     ctx.check_pairing(&[(&a, &b), (&neg_a, &b)]);
 
-    println!("offset {} {}", ctx.0.range_offset, ctx.0.base_offset);
+    println!(
+        "offset {} {}",
+        ctx.0.ctx.borrow().range_offset,
+        ctx.0.ctx.borrow().base_offset
+    );
 
     const K: u32 = 22;
     let circuit = TestCircuit::<Fq, Fr> {
-        records: Arc::try_unwrap(ctx.0.records)
+        records: Arc::try_unwrap(ctx.0.ctx.into_inner().records)
             .unwrap()
             .into_inner()
             .unwrap(),

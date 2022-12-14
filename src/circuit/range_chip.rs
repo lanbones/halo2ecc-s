@@ -1,4 +1,4 @@
-use crate::{assign::AssignedValue, context::Context, range_info::*, utils::bn_to_field};
+use crate::{assign::AssignedValue, context::IntegerContext, range_info::*, utils::bn_to_field};
 
 use halo2_proofs::{
     arithmetic::{BaseExt, FieldExt},
@@ -160,27 +160,30 @@ fn decompose_bn<N: FieldExt>(bn: &BigUint, n: u64, mask: &BigUint) -> (N, Vec<N>
     (v, chunks)
 }
 
-impl<W: BaseExt, N: FieldExt> RangeChipOps<W, N> for Context<W, N> {
+impl<W: BaseExt, N: FieldExt> RangeChipOps<W, N> for IntegerContext<W, N> {
     fn info(&self) -> Arc<RangeInfo<W, N>> {
-        self.range_info.clone().unwrap()
+        self.info.clone()
     }
 
     fn assign_common(&mut self, bn: &BigUint) -> AssignedValue<N> {
-        let mut records = self.records.lock().unwrap();
+        let records_mtx = self.ctx.borrow().records.clone();
+        let mut records = records_mtx.lock().unwrap();
         let res = records.assign_single_range_value(
-            *self.range_offset,
+            *self.ctx.borrow_mut().range_offset,
             bn_to_field(bn),
             COMMON_RANGE_BITS,
         );
-        *self.range_offset += 1;
+        *self.ctx.borrow_mut().range_offset += 1;
         res
     }
 
     fn assign_nonleading_limb(&mut self, bn: &BigUint) -> AssignedValue<N> {
         let v = decompose_bn(bn, MAX_CHUNKS, &self.info().common_range_mask);
-        let mut records = self.records.lock().unwrap();
-        let res = records.assign_range_value(*self.range_offset, v, COMMON_RANGE_BITS);
-        *self.range_offset += MAX_CHUNKS as usize + 1;
+        let records_mtx = self.ctx.borrow().records.clone();
+        let mut records = records_mtx.lock().unwrap();
+        let res =
+            records.assign_range_value(*self.ctx.borrow_mut().range_offset, v, COMMON_RANGE_BITS);
+        *self.ctx.borrow_mut().range_offset += MAX_CHUNKS as usize + 1;
         res
     }
 
@@ -191,9 +194,14 @@ impl<W: BaseExt, N: FieldExt> RangeChipOps<W, N> for Context<W, N> {
             self.info().w_ceil_leading_chunks,
             &info.common_range_mask,
         );
-        let mut records = self.records.lock().unwrap();
-        let res = records.assign_range_value(*self.range_offset, v, info.w_ceil_leading_bits);
-        *self.range_offset += MAX_CHUNKS as usize + 1;
+        let records_mtx = self.ctx.borrow().records.clone();
+        let mut records = records_mtx.lock().unwrap();
+        let res = records.assign_range_value(
+            *self.ctx.borrow_mut().range_offset,
+            v,
+            info.w_ceil_leading_bits,
+        );
+        *self.ctx.borrow_mut().range_offset += MAX_CHUNKS as usize + 1;
         res
     }
 
@@ -204,18 +212,25 @@ impl<W: BaseExt, N: FieldExt> RangeChipOps<W, N> for Context<W, N> {
             self.info().n_floor_leading_chunks,
             &info.common_range_mask,
         );
-        let mut records = self.records.lock().unwrap();
-        let res = records.assign_range_value(*self.range_offset, v, info.n_floor_leading_bits);
-        *self.range_offset += MAX_CHUNKS as usize + 1;
+        let records_mtx = self.ctx.borrow().records.clone();
+        let mut records = records_mtx.lock().unwrap();
+        let res = records.assign_range_value(
+            *self.ctx.borrow_mut().range_offset,
+            v,
+            info.n_floor_leading_bits,
+        );
+        *self.ctx.borrow_mut().range_offset += MAX_CHUNKS as usize + 1;
         res
     }
 
     fn assign_d_leading_limb(&mut self, bn: &BigUint) -> AssignedValue<N> {
         let info = self.info();
         let v = decompose_bn(bn, self.info().d_leading_chunks, &info.common_range_mask);
-        let mut records = self.records.lock().unwrap();
-        let res = records.assign_range_value(*self.range_offset, v, info.d_leading_bits);
-        *self.range_offset += MAX_CHUNKS as usize + 1;
+        let records_mtx = self.ctx.borrow().records.clone();
+        let mut records = records_mtx.lock().unwrap();
+        let res =
+            records.assign_range_value(*self.ctx.borrow_mut().range_offset, v, info.d_leading_bits);
+        *self.ctx.borrow_mut().range_offset += MAX_CHUNKS as usize + 1;
         res
     }
 }
