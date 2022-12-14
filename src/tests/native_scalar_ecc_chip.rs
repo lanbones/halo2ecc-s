@@ -17,6 +17,7 @@ use halo2_proofs::{
 };
 use std::cell::RefCell;
 use std::marker::PhantomData;
+use std::rc::Rc;
 use std::sync::Arc;
 
 #[derive(Clone)]
@@ -75,7 +76,7 @@ impl<W: FieldExt, N: FieldExt> Circuit<N> for TestCircuit<W, N> {
 
 #[test]
 fn test_native_ecc_chip() {
-    let ctx = RefCell::new(Context::new());
+    let ctx = Rc::new(RefCell::new(Context::new()));
     let ctx = IntegerContext::<halo2_proofs::pairing::bn256::Fq, Fr>::new(ctx);
     let mut ctx = NativeScalarEccContext(ctx);
 
@@ -116,7 +117,7 @@ fn test_native_ecc_chip() {
 
     const K: u32 = 22;
     let circuit = TestCircuit::<Fq, Fr> {
-        records: Arc::try_unwrap(ctx.0.ctx.into_inner().records)
+        records: Arc::try_unwrap(Rc::try_unwrap(ctx.0.ctx).unwrap().into_inner().records)
             .unwrap()
             .into_inner()
             .unwrap(),

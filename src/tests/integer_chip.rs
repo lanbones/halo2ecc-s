@@ -16,6 +16,7 @@ use halo2_proofs::{
 };
 use std::cell::RefCell;
 use std::marker::PhantomData;
+use std::rc::Rc;
 use std::sync::Arc;
 
 #[derive(Clone)]
@@ -74,7 +75,7 @@ impl<W: BaseExt, N: FieldExt> Circuit<N> for TestCircuit<W, N> {
 
 #[test]
 fn test_integer_chip_st() {
-    let ctx = RefCell::new(Context::new());
+    let ctx = Rc::new(RefCell::new(Context::new()));
     let mut ctx = IntegerContext::<halo2_proofs::pairing::bn256::Fq, Fr>::new(ctx);
 
     let a = random_fq();
@@ -117,7 +118,7 @@ fn test_integer_chip_st() {
 
     const K: u32 = 20;
     let circuit = TestCircuit::<halo2_proofs::pairing::bn256::Fq, Fr> {
-        records: Arc::try_unwrap(ctx.ctx.into_inner().records)
+        records: Arc::try_unwrap(Rc::try_unwrap(ctx.ctx).unwrap().into_inner().records)
             .unwrap()
             .into_inner()
             .unwrap(),
@@ -132,7 +133,7 @@ fn test_integer_chip_st() {
 
 #[test]
 fn test_bls12_381_fq_integer_chip_st() {
-    let ctx = RefCell::new(Context::new());
+    let ctx = Rc::new(RefCell::new(Context::new()));
     let mut ctx = IntegerContext::<halo2_proofs::pairing::bls12_381::Fq, Fr>::new(ctx);
 
     for _ in 0..1000 {
@@ -151,7 +152,7 @@ fn test_bls12_381_fq_integer_chip_st() {
 
     const K: u32 = 20;
     let circuit = TestCircuit::<halo2_proofs::pairing::bls12_381::Fq, Fr> {
-        records: Arc::try_unwrap(ctx.ctx.into_inner().records)
+        records: Arc::try_unwrap(Rc::try_unwrap(ctx.ctx).unwrap().into_inner().records)
             .unwrap()
             .into_inner()
             .unwrap(),
@@ -166,7 +167,7 @@ fn test_bls12_381_fq_integer_chip_st() {
 
 #[test]
 fn test_bls12_381_fr_integer_chip_st() {
-    let ctx = RefCell::new(Context::new());
+    let ctx = Rc::new(RefCell::new(Context::new()));
     let mut ctx = IntegerContext::<halo2_proofs::pairing::bls12_381::Fr, Fr>::new(ctx);
 
     for _ in 0..1000 {
@@ -185,7 +186,7 @@ fn test_bls12_381_fr_integer_chip_st() {
 
     const K: u32 = 20;
     let circuit = TestCircuit::<halo2_proofs::pairing::bls12_381::Fr, Fr> {
-        records: Arc::try_unwrap(ctx.ctx.into_inner().records)
+        records: Arc::try_unwrap(Rc::try_unwrap(ctx.ctx).unwrap().into_inner().records)
             .unwrap()
             .into_inner()
             .unwrap(),

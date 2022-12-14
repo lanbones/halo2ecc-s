@@ -11,17 +11,20 @@ use halo2_proofs::{
     circuit::{AssignedCell, Region},
     plonk::Error,
 };
-use std::sync::{Arc, Mutex};
 use std::{
     cell::RefCell,
     fmt::{Display, Formatter},
+};
+use std::{
+    rc::Rc,
+    sync::{Arc, Mutex},
 };
 
 #[derive(Debug, Clone)]
 pub struct Context<N: FieldExt> {
     pub records: Arc<Mutex<Records<N>>>,
-    pub base_offset: Box<usize>,
-    pub range_offset: Box<usize>,
+    pub base_offset: usize,
+    pub range_offset: usize,
 }
 
 impl<N: FieldExt> Display for Context<N> {
@@ -38,26 +41,26 @@ impl<N: FieldExt> Context<N> {
     pub fn new() -> Self {
         Self {
             records: Arc::new(Mutex::new(Records::default())),
-            base_offset: Box::new(0),
-            range_offset: Box::new(0),
+            base_offset: 0,
+            range_offset: 0,
         }
     }
 }
 
 #[derive(Debug, Clone)]
 pub struct IntegerContext<W: BaseExt, N: FieldExt> {
-    pub ctx: RefCell<Context<N>>,
+    pub ctx: Rc<RefCell<Context<N>>>,
     pub info: Arc<RangeInfo<W, N>>,
 }
 
 impl<W: BaseExt, N: FieldExt> IntegerContext<W, N> {
-    pub fn new(ctx: RefCell<Context<N>>) -> Self {
+    pub fn new(ctx: Rc<RefCell<Context<N>>>) -> Self {
         const OVERFLOW_BITS: u64 = 6;
         Self::new_with_options(ctx, COMMON_RANGE_BITS, OVERFLOW_BITS)
     }
 
     pub fn new_with_options(
-        ctx: RefCell<Context<N>>,
+        ctx: Rc<RefCell<Context<N>>>,
         common_range_bits: u64,
         overflow_bits: u64,
     ) -> Self {

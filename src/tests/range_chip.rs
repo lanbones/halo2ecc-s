@@ -17,6 +17,7 @@ use num_bigint::BigUint;
 use num_integer::Integer;
 use std::cell::RefCell;
 use std::marker::PhantomData;
+use std::rc::Rc;
 use std::sync::Arc;
 
 #[derive(Clone)]
@@ -91,19 +92,23 @@ fn test_range_chip() {
         let step = c / n;
         let start = i * step * 2;
         let mut ctx = ctx.clone();
-        *ctx.range_offset = start as usize;
-
-        let mut ctx =
-            IntegerContext::<halo2_proofs::pairing::bn256::Fq, Fr>::new(RefCell::new(ctx));
-
-        let limbs = ctx.info().limbs;
-        let non_leading_bits = (limbs - 1) * ctx.info().limb_bits;
-        let common = &a & ((BigUint::from(1u64) << ctx.info().limbs) - 1u64);
-        let a_leading = &a >> non_leading_bits;
-        let b_leading = &b >> non_leading_bits;
-        let d_leading = &d >> non_leading_bits;
-        let r_leading = &r >> non_leading_bits;
+        ctx.range_offset = start as usize;
+        let a = a.clone();
+        let b = b.clone();
+        let d = d.clone();
+        let r = r.clone();
         let t = std::thread::spawn(move || {
+            let mut ctx = IntegerContext::<halo2_proofs::pairing::bn256::Fq, Fr>::new(Rc::new(
+                RefCell::new(ctx),
+            ));
+
+            let limbs = ctx.info().limbs;
+            let non_leading_bits = (limbs - 1) * ctx.info().limb_bits;
+            let common = &a & ((BigUint::from(1u64) << ctx.info().limbs) - 1u64);
+            let a_leading = &a >> non_leading_bits;
+            let b_leading = &b >> non_leading_bits;
+            let d_leading = &d >> non_leading_bits;
+            let r_leading = &r >> non_leading_bits;
             for _ in 0..step / (1 + MAX_CHUNKS) / 5 {
                 ctx.assign_nonleading_limb(&common);
                 ctx.assign_w_ceil_leading_limb(&a_leading);
@@ -111,7 +116,7 @@ fn test_range_chip() {
                 ctx.assign_w_ceil_leading_limb(&r_leading);
                 ctx.assign_d_leading_limb(&d_leading);
             }
-            assert!(*ctx.ctx.borrow().range_offset as u64 <= start + step);
+            assert!(ctx.ctx.borrow().range_offset as u64 <= start + step);
         });
         threads.push(t);
     }

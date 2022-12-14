@@ -138,7 +138,7 @@ fn test_one_line_mt() {
         let step = c / n;
         let start = i * step * 2;
         let mut ctx = ctx.clone();
-        *ctx.base_offset = start;
+        ctx.base_offset = start;
         let t = std::thread::spawn(move || {
             for _ in 0..step {
                 ctx.one_line(

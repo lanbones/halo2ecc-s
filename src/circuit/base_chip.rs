@@ -486,17 +486,17 @@ impl<N: FieldExt> BaseChipOps<N> for Context<N> {
             .iter()
             .map(|x| x.0.clone().value())
             .enumerate()
-            .map(|(i, v)| AssignedValue::new(Chip::BaseChip, i, *self.base_offset, v))
+            .map(|(i, v)| AssignedValue::new(Chip::BaseChip, i, self.base_offset, v))
             .collect();
 
         records.one_line(
-            *self.base_offset,
+            self.base_offset,
             base_coeff_pairs,
             constant,
             mul_next_coeffs,
         );
 
-        *self.base_offset += 1;
+        self.base_offset += 1;
 
         res
     }
@@ -514,24 +514,24 @@ impl<N: FieldExt> BaseChipOps<N> for Context<N> {
             .iter()
             .map(|x| x.0.clone().value())
             .enumerate()
-            .map(|(i, v)| AssignedValue::new(Chip::BaseChip, i, *self.base_offset, v))
+            .map(|(i, v)| AssignedValue::new(Chip::BaseChip, i, self.base_offset, v))
             .collect();
         let res1 = AssignedValue::new(
             Chip::BaseChip,
             VAR_COLUMNS - 1,
-            *self.base_offset,
+            self.base_offset,
             last.0.clone().value(),
         );
 
         records.one_line_with_last(
-            *self.base_offset,
+            self.base_offset,
             base_coeff_pairs,
             last,
             constant,
             mul_next_coeffs,
         );
 
-        *self.base_offset += 1;
+        self.base_offset += 1;
 
         (res0, res1)
     }

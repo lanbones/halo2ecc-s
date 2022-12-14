@@ -169,11 +169,11 @@ impl<W: BaseExt, N: FieldExt> RangeChipOps<W, N> for IntegerContext<W, N> {
         let records_mtx = self.ctx.borrow().records.clone();
         let mut records = records_mtx.lock().unwrap();
         let res = records.assign_single_range_value(
-            *self.ctx.borrow_mut().range_offset,
+            self.ctx.borrow_mut().range_offset,
             bn_to_field(bn),
             COMMON_RANGE_BITS,
         );
-        *self.ctx.borrow_mut().range_offset += 1;
+        self.ctx.borrow_mut().range_offset += 1;
         res
     }
 
@@ -182,8 +182,8 @@ impl<W: BaseExt, N: FieldExt> RangeChipOps<W, N> for IntegerContext<W, N> {
         let records_mtx = self.ctx.borrow().records.clone();
         let mut records = records_mtx.lock().unwrap();
         let res =
-            records.assign_range_value(*self.ctx.borrow_mut().range_offset, v, COMMON_RANGE_BITS);
-        *self.ctx.borrow_mut().range_offset += MAX_CHUNKS as usize + 1;
+            records.assign_range_value(self.ctx.borrow_mut().range_offset, v, COMMON_RANGE_BITS);
+        self.ctx.borrow_mut().range_offset += MAX_CHUNKS as usize + 1;
         res
     }
 
@@ -197,11 +197,11 @@ impl<W: BaseExt, N: FieldExt> RangeChipOps<W, N> for IntegerContext<W, N> {
         let records_mtx = self.ctx.borrow().records.clone();
         let mut records = records_mtx.lock().unwrap();
         let res = records.assign_range_value(
-            *self.ctx.borrow_mut().range_offset,
+            self.ctx.borrow_mut().range_offset,
             v,
             info.w_ceil_leading_bits,
         );
-        *self.ctx.borrow_mut().range_offset += MAX_CHUNKS as usize + 1;
+        self.ctx.borrow_mut().range_offset += MAX_CHUNKS as usize + 1;
         res
     }
 
@@ -215,11 +215,11 @@ impl<W: BaseExt, N: FieldExt> RangeChipOps<W, N> for IntegerContext<W, N> {
         let records_mtx = self.ctx.borrow().records.clone();
         let mut records = records_mtx.lock().unwrap();
         let res = records.assign_range_value(
-            *self.ctx.borrow_mut().range_offset,
+            self.ctx.borrow_mut().range_offset,
             v,
             info.n_floor_leading_bits,
         );
-        *self.ctx.borrow_mut().range_offset += MAX_CHUNKS as usize + 1;
+        self.ctx.borrow_mut().range_offset += MAX_CHUNKS as usize + 1;
         res
     }
 
@@ -229,8 +229,8 @@ impl<W: BaseExt, N: FieldExt> RangeChipOps<W, N> for IntegerContext<W, N> {
         let records_mtx = self.ctx.borrow().records.clone();
         let mut records = records_mtx.lock().unwrap();
         let res =
-            records.assign_range_value(*self.ctx.borrow_mut().range_offset, v, info.d_leading_bits);
-        *self.ctx.borrow_mut().range_offset += MAX_CHUNKS as usize + 1;
+            records.assign_range_value(self.ctx.borrow_mut().range_offset, v, info.d_leading_bits);
+        self.ctx.borrow_mut().range_offset += MAX_CHUNKS as usize + 1;
         res
     }
 }
