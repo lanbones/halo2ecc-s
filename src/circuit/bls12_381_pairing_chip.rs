@@ -139,12 +139,23 @@ impl GeneralScalarEccContext<G1Affine, Fr> {
         self.fq12_mul_by_034(f, &(c00, c01), &(c10, c11), &coeffs[2])
     }
 
-    fn cyclotomic_square(&mut self, _f: &AssignedFq12<Fq, Fr>) -> AssignedFq12<Fq, Fr> {
-        unimplemented!()
-    }
+    fn cycolotomic_exp(&mut self, f: &AssignedFq12<Fq, Fr>) -> AssignedFq12<Fq, Fr> {
+        let x = BLS_X;
+        let mut tmp = self.fq12_assign_one();
+        let mut found_one = false;
+        for i in (0..64).rev().map(|b| ((x >> b) & 1) == 1) {
+            if found_one {
+                tmp = self.fq12_cyclotomic_square(&tmp)
+            } else {
+                found_one = i;
+            }
 
-    fn cycolotomic_exp(&mut self, _f: &AssignedFq12<Fq, Fr>) -> AssignedFq12<Fq, Fr> {
-        unimplemented!()
+            if i {
+                tmp = self.fq12_mul(&tmp, &f);
+            }
+        }
+
+        self.fq12_conjugate(&tmp)
     }
 }
 
@@ -244,10 +255,10 @@ impl PairingChipOps<G1Affine, Fr> for GeneralScalarEccContext<G1Affine, Fr> {
         t2 = self.fq12_frobenius_map(&t2, POWER_HOLDER);
 
         t2 = self.fq12_mul(&t2, &t1);
-        t1 = self.cyclotomic_square(&t2);
+        t1 = self.fq12_cyclotomic_square(&t2);
         t1 = self.fq12_conjugate(&t1);
         let mut t3 = self.cycolotomic_exp(&t2);
-        let mut t4 = self.cyclotomic_square(&t3);
+        let mut t4 = self.fq12_cyclotomic_square(&t3);
         let mut t5 = self.fq12_mul(&t1, &t3);
         t1 = self.cycolotomic_exp(&t5);
         t0 = self.cycolotomic_exp(&t1);
