@@ -53,6 +53,12 @@ pub struct IntegerContext<W: BaseExt, N: FieldExt> {
     pub info: Arc<RangeInfo<W, N>>,
 }
 
+impl<W: BaseExt, N: FieldExt> From<IntegerContext<W, N>> for Context<N> {
+    fn from(value: IntegerContext<W, N>) -> Self {
+        Rc::try_unwrap(value.ctx).unwrap().into_inner()
+    }
+}
+
 impl<W: BaseExt, N: FieldExt> IntegerContext<W, N> {
     pub fn new(ctx: Rc<RefCell<Context<N>>>) -> Self {
         const OVERFLOW_BITS: u64 = 6;
@@ -74,6 +80,37 @@ impl<W: BaseExt, N: FieldExt> IntegerContext<W, N> {
 pub struct NativeScalarEccContext<C: CurveAffine>(
     pub IntegerContext<<C as CurveAffine>::Base, <C as CurveAffine>::ScalarExt>,
 );
+
+
+impl<C: CurveAffine> From<NativeScalarEccContext<C>> for Context<C::Scalar> {
+    fn from(value: NativeScalarEccContext<C>) -> Self {
+        value.0.into()
+    }
+}
+
+pub struct GeneralScalarEccContext<C: CurveAffine, N: FieldExt> {
+    pub base_integer_ctx: IntegerContext<<C as CurveAffine>::Base, N>,
+    pub scalar_integer_ctx: IntegerContext<<C as CurveAffine>::ScalarExt, N>,
+    pub native_ctx: Rc<RefCell<Context<N>>>,
+}
+
+impl<C: CurveAffine, N: FieldExt> From<GeneralScalarEccContext<C, N>> for Context<N> {
+    fn from(value: GeneralScalarEccContext<C, N>) -> Self {
+        drop(value.base_integer_ctx);
+        drop(value.scalar_integer_ctx);
+        Rc::try_unwrap(value.native_ctx).unwrap().into_inner()
+    }
+}
+
+impl<C: CurveAffine, N: FieldExt> GeneralScalarEccContext<C, N> {
+    pub fn new(ctx: Rc<RefCell<Context<N>>>) -> Self {
+        Self {
+            base_integer_ctx: IntegerContext::<C::Base, N>::new(ctx.clone()),
+            scalar_integer_ctx: IntegerContext::<C::Scalar, N>::new(ctx.clone()),
+            native_ctx: ctx,
+        }
+    }
+}
 
 #[derive(Debug, Default, Clone)]
 pub struct Records<N: FieldExt> {
@@ -166,10 +203,10 @@ impl<N: FieldExt> Records<N> {
         Ok(cells)
     }
 
-    pub fn _assign_to_range_chip<W: BaseExt>(
+    pub fn _assign_to_range_chip(
         &self,
         region: &mut Region<'_, N>,
-        range_chip: &RangeChip<W, N>,
+        range_chip: &RangeChip<N>,
     ) -> Result<Vec<Vec<Option<AssignedCell<N, N>>>>, Error> {
         let mut cells = vec![vec![None; self.range_height]];
 
@@ -247,11 +284,11 @@ impl<N: FieldExt> Records<N> {
         Ok(cells)
     }
 
-    pub fn assign_all_opt<W: BaseExt>(
+    pub fn assign_all_opt(
         &self,
         region: &mut Region<'_, N>,
         base_chip: &BaseChip<N>,
-        range_chip: &RangeChip<W, N>,
+        range_chip: &RangeChip<N>,
     ) -> Result<Option<Vec<Vec<Vec<Option<AssignedCell<N, N>>>>>>, Error> {
         let max_row = usize::max(self.base_height, self.range_height);
         let is_assign_for_max_row = self.assign_for_max_row(region, base_chip, max_row)?;
@@ -266,11 +303,11 @@ impl<N: FieldExt> Records<N> {
         }
     }
 
-    pub fn assign_all<W: BaseExt>(
+    pub fn assign_all(
         &self,
         region: &mut Region<'_, N>,
         base_chip: &BaseChip<N>,
-        range_chip: &RangeChip<W, N>,
+        range_chip: &RangeChip<N>,
     ) -> Result<Vec<Vec<Vec<Option<AssignedCell<N, N>>>>>, Error> {
         let base_cells = self._assign_to_base_chip(region, base_chip)?;
         let range_cells = self._assign_to_range_chip(region, range_chip)?;

@@ -15,60 +15,59 @@ use super::{
         FROBENIUS_COEFF_FQ12_C1, FROBENIUS_COEFF_FQ2_C1, FROBENIUS_COEFF_FQ6_C1,
         FROBENIUS_COEFF_FQ6_C2,
     },
-    integer_chip::IntegerChipOps,
+    ecc_chip::EccBaseIntegerChipWrapper,
 };
 
-pub trait Fq2ChipOps<W: BaseExt, N: FieldExt> {
-    fn integer_chip(&mut self) -> &mut dyn IntegerChipOps<W, N>;
+pub trait Fq2ChipOps<W: BaseExt, N: FieldExt>: EccBaseIntegerChipWrapper<W, N> {
     fn fq2_assert_equal(&mut self, x: &AssignedFq2<W, N>, y: &AssignedFq2<W, N>) {
-        self.integer_chip().assert_int_equal(&x.0, &y.0);
-        self.integer_chip().assert_int_equal(&x.1, &y.1);
+        self.base_integer_chip().assert_int_equal(&x.0, &y.0);
+        self.base_integer_chip().assert_int_equal(&x.1, &y.1);
     }
     fn fq2_assign_zero(&mut self) -> AssignedFq2<W, N> {
-        let fq2_zero = self.integer_chip().assign_int_constant(W::zero());
+        let fq2_zero = self.base_integer_chip().assign_int_constant(W::zero());
         (fq2_zero.clone(), fq2_zero)
     }
     fn fq2_assign_one(&mut self) -> AssignedFq2<W, N> {
         (
-            self.integer_chip().assign_int_constant(W::one()),
-            self.integer_chip().assign_int_constant(W::zero()),
+            self.base_integer_chip().assign_int_constant(W::one()),
+            self.base_integer_chip().assign_int_constant(W::zero()),
         )
     }
     fn fq2_assign_constant(&mut self, c0: W, c1: W) -> AssignedFq2<W, N> {
         (
-            self.integer_chip().assign_int_constant(c0),
-            self.integer_chip().assign_int_constant(c1),
+            self.base_integer_chip().assign_int_constant(c0),
+            self.base_integer_chip().assign_int_constant(c1),
         )
     }
     fn fq2_add(&mut self, a: &AssignedFq2<W, N>, b: &AssignedFq2<W, N>) -> AssignedFq2<W, N> {
         (
-            self.integer_chip().int_add(&a.0, &b.0),
-            self.integer_chip().int_add(&a.1, &b.1),
+            self.base_integer_chip().int_add(&a.0, &b.0),
+            self.base_integer_chip().int_add(&a.1, &b.1),
         )
     }
     fn fq2_mul(&mut self, a: &AssignedFq2<W, N>, b: &AssignedFq2<W, N>) -> AssignedFq2<W, N> {
-        let ab00 = self.integer_chip().int_mul(&a.0, &b.0);
-        let ab11 = self.integer_chip().int_mul(&a.1, &b.1);
-        let c0 = self.integer_chip().int_sub(&ab00, &ab11);
+        let ab00 = self.base_integer_chip().int_mul(&a.0, &b.0);
+        let ab11 = self.base_integer_chip().int_mul(&a.1, &b.1);
+        let c0 = self.base_integer_chip().int_sub(&ab00, &ab11);
 
-        let a01 = self.integer_chip().int_add(&a.0, &a.1);
-        let b01 = self.integer_chip().int_add(&b.0, &b.1);
-        let c1 = self.integer_chip().int_mul(&a01, &b01);
-        let c1 = self.integer_chip().int_sub(&c1, &ab00);
-        let c1 = self.integer_chip().int_sub(&c1, &ab11);
+        let a01 = self.base_integer_chip().int_add(&a.0, &a.1);
+        let b01 = self.base_integer_chip().int_add(&b.0, &b.1);
+        let c1 = self.base_integer_chip().int_mul(&a01, &b01);
+        let c1 = self.base_integer_chip().int_sub(&c1, &ab00);
+        let c1 = self.base_integer_chip().int_sub(&c1, &ab11);
 
         (c0, c1)
     }
     fn fq2_sub(&mut self, a: &AssignedFq2<W, N>, b: &AssignedFq2<W, N>) -> AssignedFq2<W, N> {
         (
-            self.integer_chip().int_sub(&a.0, &b.0),
-            self.integer_chip().int_sub(&a.1, &b.1),
+            self.base_integer_chip().int_sub(&a.0, &b.0),
+            self.base_integer_chip().int_sub(&a.1, &b.1),
         )
     }
     fn fq2_double(&mut self, a: &AssignedFq2<W, N>) -> AssignedFq2<W, N> {
         (
-            self.integer_chip().int_add(&a.0, &a.0),
-            self.integer_chip().int_add(&a.1, &a.1),
+            self.base_integer_chip().int_add(&a.0, &a.0),
+            self.base_integer_chip().int_add(&a.1, &a.1),
         )
     }
     fn fq2_square(&mut self, a: &AssignedFq2<W, N>) -> AssignedFq2<W, N> {
@@ -76,43 +75,43 @@ pub trait Fq2ChipOps<W: BaseExt, N: FieldExt> {
     }
     fn fq2_neg(&mut self, a: &AssignedFq2<W, N>) -> AssignedFq2<W, N> {
         (
-            self.integer_chip().int_neg(&a.0),
-            self.integer_chip().int_neg(&a.1),
+            self.base_integer_chip().int_neg(&a.0),
+            self.base_integer_chip().int_neg(&a.1),
         )
     }
     fn fq2_conjugate(&mut self, a: &AssignedFq2<W, N>) -> AssignedFq2<W, N> {
-        (a.0.clone(), self.integer_chip().int_neg(&a.1))
+        (a.0.clone(), self.base_integer_chip().int_neg(&a.1))
     }
     fn fq2_mul_by_nonresidue(&mut self, a: &AssignedFq2<W, N>) -> AssignedFq2<W, N> {
         let a2 = self.fq2_double(a);
         let a4 = self.fq2_double(&a2);
         let a8 = self.fq2_double(&a4);
 
-        let t = self.integer_chip().int_add(&a8.0, &a.0);
-        let c0 = self.integer_chip().int_sub(&t, &a.1);
+        let t = self.base_integer_chip().int_add(&a8.0, &a.0);
+        let c0 = self.base_integer_chip().int_sub(&t, &a.1);
 
-        let t = self.integer_chip().int_add(&a8.1, &a.0);
-        let c1 = self.integer_chip().int_add(&t, &a.1);
+        let t = self.base_integer_chip().int_add(&a8.1, &a.0);
+        let c1 = self.base_integer_chip().int_add(&t, &a.1);
 
         (c0, c1)
     }
     fn fq2_unsafe_invert(&mut self, x: &AssignedFq2<W, N>) -> AssignedFq2<W, N> {
-        let t0 = self.integer_chip().int_square(&x.0);
-        let t1 = self.integer_chip().int_square(&x.1);
-        let t0 = self.integer_chip().int_add(&t0, &t1);
-        let t = self.integer_chip().int_unsafe_invert(&t0);
-        let c0 = self.integer_chip().int_mul(&x.0, &t);
-        let c1 = self.integer_chip().int_mul(&x.1, &t);
-        let c1 = self.integer_chip().int_neg(&c1);
+        let t0 = self.base_integer_chip().int_square(&x.0);
+        let t1 = self.base_integer_chip().int_square(&x.1);
+        let t0 = self.base_integer_chip().int_add(&t0, &t1);
+        let t = self.base_integer_chip().int_unsafe_invert(&t0);
+        let c0 = self.base_integer_chip().int_mul(&x.0, &t);
+        let c1 = self.base_integer_chip().int_mul(&x.1, &t);
+        let c1 = self.base_integer_chip().int_neg(&c1);
         (c0, c1)
     }
     fn fq2_frobenius_map(&mut self, x: &AssignedFq2<W, N>, power: usize) -> AssignedFq2<W, N> {
         let v = self
-            .integer_chip()
+            .base_integer_chip()
             .assign_int_constant(bn_to_field(&BigUint::from_bytes_le(
                 &FROBENIUS_COEFF_FQ2_C1[power % 2],
             )));
-        (x.0.clone(), self.integer_chip().int_mul(&x.1, &v))
+        (x.0.clone(), self.base_integer_chip().int_mul(&x.1, &v))
     }
 }
 

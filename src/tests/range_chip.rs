@@ -1,78 +1,15 @@
-use crate::circuit::base_chip::{BaseChip, BaseChipConfig};
-use crate::circuit::range_chip::{RangeChip, RangeChipOps};
-use crate::circuit::range_chip::{RangeChipConfig, MAX_CHUNKS};
-use crate::context::Records;
+use crate::circuit::range_chip::RangeChipOps;
+use crate::circuit::range_chip::MAX_CHUNKS;
 use crate::context::{Context, IntegerContext};
 use crate::tests::random_fq;
+use crate::tests::run_circuit_on_bn256;
 use crate::utils::field_to_bn;
 use ark_std::{end_timer, start_timer};
-use halo2_proofs::arithmetic::FieldExt;
 use halo2_proofs::pairing::bn256::{Fq, Fr};
-use halo2_proofs::{
-    circuit::{Layouter, SimpleFloorPlanner},
-    dev::MockProver,
-    plonk::{Circuit, ConstraintSystem, Error},
-};
 use num_bigint::BigUint;
 use num_integer::Integer;
 use std::cell::RefCell;
-use std::marker::PhantomData;
 use std::rc::Rc;
-use std::sync::Arc;
-
-#[derive(Clone)]
-struct TestChipConfig {
-    base_chip_config: BaseChipConfig,
-    range_chip_config: RangeChipConfig,
-}
-
-#[derive(Default)]
-struct TestCircuit<W: FieldExt, N: FieldExt> {
-    records: Records<N>,
-    _phantom: PhantomData<W>,
-}
-
-impl<W: FieldExt, N: FieldExt> Circuit<N> for TestCircuit<W, N> {
-    type Config = TestChipConfig;
-    type FloorPlanner = SimpleFloorPlanner;
-
-    fn without_witnesses(&self) -> Self {
-        Self::default()
-    }
-
-    fn configure(meta: &mut ConstraintSystem<N>) -> Self::Config {
-        let base_chip_config = BaseChip::configure(meta);
-        let range_chip_config = RangeChip::<W, N>::configure(meta);
-        TestChipConfig {
-            base_chip_config,
-            range_chip_config,
-        }
-    }
-
-    fn synthesize(
-        &self,
-        config: Self::Config,
-        mut layouter: impl Layouter<N>,
-    ) -> Result<(), Error> {
-        let base_chip = BaseChip::new(config.base_chip_config);
-        let range_chip = RangeChip::<W, N>::new(config.range_chip_config);
-
-        range_chip.init_table(&mut layouter)?;
-
-        layouter.assign_region(
-            || "base",
-            |mut region| {
-                let timer = start_timer!(|| "assign");
-                self.records
-                    .assign_all(&mut region, &base_chip, &range_chip)?;
-                end_timer!(timer);
-                Ok(())
-            },
-        )?;
-
-        Ok(())
-    }
-}
 
 #[test]
 fn test_range_chip() {
@@ -127,17 +64,5 @@ fn test_range_chip() {
 
     end_timer!(timer);
 
-    const K: u32 = 20;
-    let circuit = TestCircuit::<Fq, Fr> {
-        records: Arc::try_unwrap(ctx.records)
-            .unwrap()
-            .into_inner()
-            .unwrap(),
-        _phantom: PhantomData,
-    };
-    let prover = match MockProver::run(K, &circuit, vec![]) {
-        Ok(prover) => prover,
-        Err(e) => panic!("{:#?}", e),
-    };
-    assert_eq!(prover.verify(), Ok(()));
+    run_circuit_on_bn256(ctx, 20);
 }

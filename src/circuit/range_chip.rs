@@ -24,12 +24,12 @@ pub struct RangeChipConfig {
     pub value: Column<Advice>,
 }
 
-pub struct RangeChip<W: BaseExt, N: FieldExt> {
+pub struct RangeChip<N: FieldExt> {
     pub config: RangeChipConfig,
-    pub _phantom: PhantomData<(N, W)>,
+    pub _phantom: PhantomData<N>,
 }
 
-impl<W: BaseExt, N: FieldExt> RangeChip<W, N> {
+impl<N: FieldExt> RangeChip<N> {
     pub fn new(config: RangeChipConfig) -> Self {
         RangeChip {
             config,

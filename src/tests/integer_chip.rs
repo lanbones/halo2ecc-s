@@ -1,77 +1,12 @@
-use crate::circuit::base_chip::{BaseChip, BaseChipConfig, BaseChipOps};
+use crate::circuit::base_chip::BaseChipOps;
 use crate::circuit::integer_chip::IntegerChipOps;
-use crate::circuit::range_chip::RangeChip;
-use crate::circuit::range_chip::RangeChipConfig;
-use crate::context::Records;
 use crate::context::{Context, IntegerContext};
-use crate::tests::{random_bls12_381_fq, random_bls12_381_fr, random_fq};
+use crate::tests::{random_bls12_381_fq, random_bls12_381_fr, random_fq, run_circuit_on_bn256};
 use crate::utils::field_to_bn;
-use ark_std::{end_timer, start_timer};
-use halo2_proofs::arithmetic::{BaseExt, Field, FieldExt};
+use halo2_proofs::arithmetic::Field;
 use halo2_proofs::pairing::bn256::Fr;
-use halo2_proofs::{
-    circuit::{Layouter, SimpleFloorPlanner},
-    dev::MockProver,
-    plonk::{Circuit, ConstraintSystem, Error},
-};
 use std::cell::RefCell;
-use std::marker::PhantomData;
 use std::rc::Rc;
-use std::sync::Arc;
-
-#[derive(Clone)]
-struct TestChipConfig {
-    base_chip_config: BaseChipConfig,
-    range_chip_config: RangeChipConfig,
-}
-
-#[derive(Default)]
-struct TestCircuit<W: BaseExt, N: FieldExt> {
-    records: Records<N>,
-    _phantom: PhantomData<W>,
-}
-
-impl<W: BaseExt, N: FieldExt> Circuit<N> for TestCircuit<W, N> {
-    type Config = TestChipConfig;
-    type FloorPlanner = SimpleFloorPlanner;
-
-    fn without_witnesses(&self) -> Self {
-        Self::default()
-    }
-
-    fn configure(meta: &mut ConstraintSystem<N>) -> Self::Config {
-        let base_chip_config = BaseChip::configure(meta);
-        let range_chip_config = RangeChip::<W, N>::configure(meta);
-        TestChipConfig {
-            base_chip_config,
-            range_chip_config,
-        }
-    }
-
-    fn synthesize(
-        &self,
-        config: Self::Config,
-        mut layouter: impl Layouter<N>,
-    ) -> Result<(), Error> {
-        let base_chip = BaseChip::new(config.base_chip_config);
-        let range_chip = RangeChip::<W, N>::new(config.range_chip_config);
-
-        range_chip.init_table(&mut layouter)?;
-
-        layouter.assign_region(
-            || "base",
-            |mut region| {
-                let timer = start_timer!(|| "assign");
-                self.records
-                    .assign_all(&mut region, &base_chip, &range_chip)?;
-                end_timer!(timer);
-                Ok(())
-            },
-        )?;
-
-        Ok(())
-    }
-}
 
 #[test]
 fn test_integer_chip_st() {
@@ -116,19 +51,7 @@ fn test_integer_chip_st() {
     let (g1, _) = ctx.int_div(&a, &zero);
     ctx.ctx.borrow_mut().assert_true(&g1);
 
-    const K: u32 = 20;
-    let circuit = TestCircuit::<halo2_proofs::pairing::bn256::Fq, Fr> {
-        records: Arc::try_unwrap(Rc::try_unwrap(ctx.ctx).unwrap().into_inner().records)
-            .unwrap()
-            .into_inner()
-            .unwrap(),
-        _phantom: PhantomData,
-    };
-    let prover = match MockProver::run(K, &circuit, vec![]) {
-        Ok(prover) => prover,
-        Err(e) => panic!("{:#?}", e),
-    };
-    assert_eq!(prover.verify(), Ok(()));
+    run_circuit_on_bn256(ctx.into(), 20);
 }
 
 #[test]
@@ -150,19 +73,7 @@ fn test_bls12_381_fq_integer_chip_st() {
         ctx.assert_int_equal(&ab0, &ab1);
     }
 
-    const K: u32 = 20;
-    let circuit = TestCircuit::<halo2_proofs::pairing::bls12_381::Fq, Fr> {
-        records: Arc::try_unwrap(Rc::try_unwrap(ctx.ctx).unwrap().into_inner().records)
-            .unwrap()
-            .into_inner()
-            .unwrap(),
-        _phantom: PhantomData,
-    };
-    let prover = match MockProver::run(K, &circuit, vec![]) {
-        Ok(prover) => prover,
-        Err(e) => panic!("{:#?}", e),
-    };
-    assert_eq!(prover.verify(), Ok(()));
+    run_circuit_on_bn256(ctx.into(), 20);
 }
 
 #[test]
@@ -184,17 +95,5 @@ fn test_bls12_381_fr_integer_chip_st() {
         ctx.assert_int_equal(&ab0, &ab1);
     }
 
-    const K: u32 = 20;
-    let circuit = TestCircuit::<halo2_proofs::pairing::bls12_381::Fr, Fr> {
-        records: Arc::try_unwrap(Rc::try_unwrap(ctx.ctx).unwrap().into_inner().records)
-            .unwrap()
-            .into_inner()
-            .unwrap(),
-        _phantom: PhantomData,
-    };
-    let prover = match MockProver::run(K, &circuit, vec![]) {
-        Ok(prover) => prover,
-        Err(e) => panic!("{:#?}", e),
-    };
-    assert_eq!(prover.verify(), Ok(()));
+    run_circuit_on_bn256(ctx.into(), 20);
 }

@@ -4,6 +4,7 @@ use halo2_proofs::pairing::group::ff::PrimeField;
 use num_integer::Integer;
 
 use super::base_chip::BaseChipOps;
+use super::ecc_chip::EccBaseIntegerChipWrapper;
 use super::ecc_chip::EccChipScalarOps;
 use super::integer_chip::IntegerChipOps;
 use crate::assign::AssignedCondition;
@@ -11,17 +12,22 @@ use crate::assign::AssignedValue;
 use crate::circuit::ecc_chip::EccChipBaseOps;
 use crate::context::NativeScalarEccContext;
 use crate::pair;
-use crate::utils::{bn_to_field, field_to_bn};
+use crate::utils::bn_to_field;
+use crate::utils::field_to_bn;
 
-impl<C: CurveAffine> EccChipBaseOps<C, C::Scalar> for NativeScalarEccContext<C> {
+impl<C: CurveAffine> EccBaseIntegerChipWrapper<C::Base, C::ScalarExt>
+    for NativeScalarEccContext<C>
+{
     fn base_integer_chip(
         &mut self,
-    ) -> &mut dyn IntegerChipOps<<C as CurveAffine>::Base, C::Scalar> {
+    ) -> &mut dyn IntegerChipOps<<C as CurveAffine>::Base, C::ScalarExt> {
         &mut self.0
     }
 }
 
-impl<C: CurveAffine> EccChipScalarOps<C, C::Scalar> for NativeScalarEccContext<C> {
+impl<C: CurveAffine> EccChipBaseOps<C, C::ScalarExt> for NativeScalarEccContext<C> {}
+
+impl<C: CurveAffine> EccChipScalarOps<C, C::ScalarExt> for NativeScalarEccContext<C> {
     type AssignedScalar = AssignedValue<C::ScalarExt>;
 
     fn decompose_scalar<const WINDOW_SIZE: usize>(

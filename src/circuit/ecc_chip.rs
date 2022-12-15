@@ -1,3 +1,4 @@
+use halo2_proofs::arithmetic::BaseExt;
 use halo2_proofs::arithmetic::CurveAffine;
 use halo2_proofs::arithmetic::Field;
 use halo2_proofs::arithmetic::FieldExt;
@@ -199,9 +200,13 @@ pub trait EccChipScalarOps<C: CurveAffine, N: FieldExt>: EccChipBaseOps<C, N> {
     }
 }
 
-pub trait EccChipBaseOps<C: CurveAffine, N: FieldExt> {
-    fn base_integer_chip(&mut self) -> &mut dyn IntegerChipOps<C::Base, N>;
+pub trait EccBaseIntegerChipWrapper<W: BaseExt, N: FieldExt> {
+    fn base_integer_chip(&mut self) -> &mut dyn IntegerChipOps<W, N>;
+}
 
+pub trait EccChipBaseOps<C: CurveAffine, N: FieldExt>:
+    EccBaseIntegerChipWrapper<C::Base, N>
+{
     fn assign_constant_point(&mut self, c: &C::CurveExt) -> AssignedPoint<C, N> {
         let coordinates = c.to_affine().coordinates();
         let t: Option<_> = coordinates.map(|v| (v.x().clone(), v.y().clone())).into();
@@ -427,8 +432,9 @@ pub trait EccChipBaseOps<C: CurveAffine, N: FieldExt> {
 
     fn ecc_encode(&mut self, p: &AssignedPoint<C, N>) -> Vec<AssignedValue<N>> {
         let p = self.ecc_reduce(&p);
-        let shift =
-            bn_to_field(&(BigUint::from(1u64) << self.base_integer_chip().range_chip().info().limb_bits));
+        let shift = bn_to_field(
+            &(BigUint::from(1u64) << self.base_integer_chip().range_chip().info().limb_bits),
+        );
         let s0 = self.base_integer_chip().base_chip().sum_with_constant(
             vec![(&p.x.limbs_le[0], N::one()), (&p.x.limbs_le[1], shift)],
             None,

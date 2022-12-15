@@ -135,7 +135,7 @@ pub trait PairingChipOps<C: CurveAffine, N: FieldExt>: Fq12ChipOps<C::Base, N> {
 
     fn g2affine_to_g2(&mut self, g2: &AssignedG2Affine<C, N>) -> AssignedG2<C, N> {
         // not support identity
-        self.integer_chip().base_chip().assert_false(&g2.z);
+        self.base_integer_chip().base_chip().assert_false(&g2.z);
         let z = self.fq2_assign_one();
 
         AssignedG2::new(g2.x.clone(), g2.y.clone(), z)
@@ -187,10 +187,10 @@ pub trait PairingChipOps<C: CurveAffine, N: FieldExt>: Fq12ChipOps<C::Base, N> {
             bn_to_field(&BigUint::from_bytes_le(&XI_TO_Q_MINUS_1_OVER_2[1])),
         );
 
-        q1.x.1 = self.integer_chip().int_neg(&q1.x.1);
+        q1.x.1 = self.base_integer_chip().int_neg(&q1.x.1);
         q1.x = self.fq2_mul(&q1.x, &c11);
 
-        q1.y.1 = self.integer_chip().int_neg(&q1.y.1);
+        q1.y.1 = self.base_integer_chip().int_neg(&q1.y.1);
         q1.y = self.fq2_mul(&q1.y, &xi);
 
         let (new_r, coeff) = self.addition_step(&r, &q1);
@@ -217,10 +217,10 @@ pub trait PairingChipOps<C: CurveAffine, N: FieldExt>: Fq12ChipOps<C::Base, N> {
         let c10 = &coeffs[1].0;
         let c11 = &coeffs[1].1;
 
-        let c00 = self.integer_chip().int_mul(&c00, &p.y);
-        let c01 = self.integer_chip().int_mul(&c01, &p.y);
-        let c10 = self.integer_chip().int_mul(&c10, &p.x);
-        let c11 = self.integer_chip().int_mul(&c11, &p.x);
+        let c00 = self.base_integer_chip().int_mul(&c00, &p.y);
+        let c01 = self.base_integer_chip().int_mul(&c01, &p.y);
+        let c10 = self.base_integer_chip().int_mul(&c10, &p.x);
+        let c11 = self.base_integer_chip().int_mul(&c11, &p.x);
 
         self.fq12_mul_by_034(f, &(c00, c01), &(c10, c11), &coeffs[2])
     }
@@ -232,7 +232,7 @@ pub trait PairingChipOps<C: CurveAffine, N: FieldExt>: Fq12ChipOps<C::Base, N> {
         let mut pairs = vec![];
         for &(p, q) in terms {
             // not support identity
-            self.integer_chip().base_chip().assert_false(&p.z);
+            self.base_integer_chip().base_chip().assert_false(&p.z);
             pairs.push((p, q.coeffs.iter()));
         }
 

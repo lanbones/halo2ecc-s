@@ -92,7 +92,7 @@ dependencies = [
 [[package]]
 name = "bls12_381"
 version = "0.7.0"
-source = "git+https://github.com/lanbones/bls12_381.git#e73fce7dedebee46df2c8fffde7029b5bbfc68d9"
+source = "git+https://github.com/lanbones/bls12_381.git#49082b41cf51f34485944dc5e1ee4f4a7b0f1eda"
 dependencies = [
  "ff",
  "group",
@@ -109,9 +109,9 @@ checksum = "8f1e260c3a9040a7c19a12468758f4c16f31a81a1fe087482be9570ec864bb6c"
 
 [[package]]
 name = "cc"
-version = "1.0.77"
+version = "1.0.78"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e9f73505338f7d905b19d18738976aae232eb46b8efc15554ffc56deb5d9ebe4"
+checksum = "a20104e2335ce8a659d6dd92a51a767a0c062599c73b343fd152cb401e828c3d"
 
 [[package]]
 name = "cfg-if"
@@ -689,7 +689,7 @@ dependencies = [
 [[package]]
 name = "pairing_bn256"
 version = "0.1.1"
-source = "git+https://github.com/lanbones/pairing#42a081b35e39f2a70497cfbfb7f8861ea48fb317"
+source = "git+https://github.com/lanbones/pairing#24613d8efa6971deda1f1ae02edcdce179c6818e"
 dependencies = [
  "bls12_381",
  "ec-gpu",
