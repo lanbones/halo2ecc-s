@@ -66,7 +66,6 @@ impl<N: FieldExt, T: EccBaseIntegerChipWrapper<Fq, N> + Fq2ChipOps<Fq, N>> Fq6Bn
         ));
         let c1 = self.fq2_mul(&c1, &coeff_c1);
         let coeff_c2 = self.fq2_assign_constant((
-            Fq::zero(),
             Fq::from_raw_unchecked([
                 0x890d_c9e4_8675_45c3,
                 0x2af3_2253_3285_a5d5,
@@ -75,6 +74,7 @@ impl<N: FieldExt, T: EccBaseIntegerChipWrapper<Fq, N> + Fq2ChipOps<Fq, N>> Fq6Bn
                 0x14e4_f04f_e2db_9068,
                 0x14e5_6d3f_1564_853a,
             ]),
+            Fq::zero(),
         ));
         let c2 = self.fq2_mul(&c2, &coeff_c2);
 
@@ -136,7 +136,7 @@ impl GeneralScalarEccContext<G1Affine, Fr> {
         let c10 = self.base_integer_chip().int_mul(&c10, &p.x);
         let c11 = self.base_integer_chip().int_mul(&c11, &p.x);
 
-        self.fq12_mul_by_034(f, &(c00, c01), &(c10, c11), &coeffs[2])
+        self.fq12_mul_by_014(f, &coeffs[2], &(c10, c11), &(c00, c01))
     }
 
     fn cycolotomic_exp(&mut self, f: &AssignedFq12<Fq, Fr>) -> AssignedFq12<Fq, Fr> {

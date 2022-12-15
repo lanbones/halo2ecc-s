@@ -335,13 +335,13 @@ pub trait Fq12ChipOps<W: BaseExt, N: FieldExt>: Fq6ChipOps<W, N> + Fq6BnSpecific
         let t1 = self.fq6_mul_by_1(&x.1, c4);
         let o = self.fq2_add(c1, c4);
 
-        let x0 = self.fq6_add(&x.0, &x.1);
-        let x0 = self.fq6_mul_by_01(&x0, c0, &o);
-        let x0 = self.fq6_sub(&x0, &t0);
-        let x0 = self.fq6_sub(&x0, &t1);
+        let x0 = self.fq6_mul_by_nonresidue(&t1);
+        let x0 = self.fq6_add(&x0, &t0);
 
-        let x1 = self.fq6_mul_by_nonresidue(&t1);
-        let x1 = self.fq6_add(&x1, &t0);
+        let x1 = self.fq6_add(&x.0, &x.1);
+        let x1 = self.fq6_mul_by_01(&x1, c0, &o);
+        let x1 = self.fq6_sub(&x1, &t0);
+        let x1 = self.fq6_sub(&x1, &t1);
 
         (x0, x1)
     }

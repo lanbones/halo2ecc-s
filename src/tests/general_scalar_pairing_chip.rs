@@ -22,8 +22,13 @@ fn test_bls12_381_pairing_chip_over_bn256_fr() {
 
         let a = G1::random(&mut OsRng).into();
         let b = G2Affine::from(G2::random(&mut OsRng));
+        let c = G1::random(&mut OsRng).into();
+        let d = G2Affine::from(G2::random(&mut OsRng));
 
         let ab = pairing(&a, &b);
+        let cd = pairing(&c, &d);
+
+        let abcd = ab + cd;
 
         let bx = ctx.fq2_assign_constant((b.x.c0, b.x.c1));
         let by = ctx.fq2_assign_constant((b.y.c0, b.y.c1));
@@ -33,24 +38,33 @@ fn test_bls12_381_pairing_chip_over_bn256_fr() {
             AssignedCondition(ctx.native_ctx.borrow_mut().assign_constant(Fr::zero())),
         );
 
-        let ab0 = ctx.fq12_assign_constant((
+        let dx = ctx.fq2_assign_constant((d.x.c0, d.x.c1));
+        let dy = ctx.fq2_assign_constant((d.y.c0, d.y.c1));
+        let d = AssignedG2Affine::new(
+            dx,
+            dy,
+            AssignedCondition(ctx.native_ctx.borrow_mut().assign_constant(Fr::zero())),
+        );
+
+        let abcd0 = ctx.fq12_assign_constant((
             (
-                (ab.0.c0.c0.c0, ab.0.c0.c0.c1),
-                (ab.0.c0.c1.c0, ab.0.c0.c1.c1),
-                (ab.0.c0.c2.c0, ab.0.c0.c2.c1),
+                (abcd.0.c0.c0.c0, abcd.0.c0.c0.c1),
+                (abcd.0.c0.c1.c0, abcd.0.c0.c1.c1),
+                (abcd.0.c0.c2.c0, abcd.0.c0.c2.c1),
             ),
             (
-                (ab.0.c1.c0.c0, ab.0.c1.c0.c1),
-                (ab.0.c1.c1.c0, ab.0.c1.c1.c1),
-                (ab.0.c1.c2.c0, ab.0.c1.c2.c1),
+                (abcd.0.c1.c0.c0, abcd.0.c1.c0.c1),
+                (abcd.0.c1.c1.c0, abcd.0.c1.c1.c1),
+                (abcd.0.c1.c2.c0, abcd.0.c1.c2.c1),
             ),
         ));
 
         let a = ctx.assign_point(&a.to_curve());
+        let c = ctx.assign_point(&c.to_curve());
 
-        let ab1 = ctx.pairing(&[(&a, &b)]);
+        let abcd1 = ctx.pairing(&[(&a, &b), (&c, &d)]);
 
-        ctx.fq12_assert_eq(&ab0, &ab1);
+        ctx.fq12_assert_eq(&abcd0, &abcd1);
 
         run_circuit_on_bn256(ctx.into(), 22);
     }
