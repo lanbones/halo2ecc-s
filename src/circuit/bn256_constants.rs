@@ -1,4 +1,7 @@
-// currently only supports bn256
+/*
+  The implementation is ported from https://github.com/privacy-scaling-explorations/pairing
+*/
+
 // 6U+2 for in NAF form
 pub const BN_X: u64 = 4965661367192848881;
 

@@ -3,20 +3,23 @@
 */
 
 use halo2_proofs::arithmetic::{BaseExt, FieldExt};
-use num_bigint::BigUint;
 
-use crate::{
-    assign::{AssignedFq12, AssignedFq2, AssignedFq6},
-    utils::bn_to_field,
-};
+use super::ecc_chip::EccBaseIntegerChipWrapper;
+use crate::assign::{AssignedFq12, AssignedFq2, AssignedFq6};
 
-use super::{
-    bn256_constants::{
-        FROBENIUS_COEFF_FQ12_C1, FROBENIUS_COEFF_FQ2_C1, FROBENIUS_COEFF_FQ6_C1,
-        FROBENIUS_COEFF_FQ6_C2,
-    },
-    ecc_chip::EccBaseIntegerChipWrapper,
-};
+pub trait Fq2BnSpecificOps<W: BaseExt, N: FieldExt> {
+    fn fq2_mul_by_nonresidue(&mut self, a: &AssignedFq2<W, N>) -> AssignedFq2<W, N>;
+    fn fq2_frobenius_map(&mut self, x: &AssignedFq2<W, N>, power: usize) -> AssignedFq2<W, N>;
+}
+
+pub trait Fq6BnSpecificOps<W: BaseExt, N: FieldExt> {
+    fn fq6_mul_by_nonresidue(&mut self, a: &AssignedFq6<W, N>) -> AssignedFq6<W, N>;
+    fn fq6_frobenius_map(&mut self, x: &AssignedFq6<W, N>, power: usize) -> AssignedFq6<W, N>;
+}
+
+pub trait Fq12BnSpecificOps<W: BaseExt, N: FieldExt> {
+    fn fq12_frobenius_map(&mut self, x: &AssignedFq12<W, N>, power: usize) -> AssignedFq12<W, N>;
+}
 
 pub trait Fq2ChipOps<W: BaseExt, N: FieldExt>: EccBaseIntegerChipWrapper<W, N> {
     fn fq2_assert_equal(&mut self, x: &AssignedFq2<W, N>, y: &AssignedFq2<W, N>) {
@@ -33,10 +36,10 @@ pub trait Fq2ChipOps<W: BaseExt, N: FieldExt>: EccBaseIntegerChipWrapper<W, N> {
             self.base_integer_chip().assign_int_constant(W::zero()),
         )
     }
-    fn fq2_assign_constant(&mut self, c0: W, c1: W) -> AssignedFq2<W, N> {
+    fn fq2_assign_constant(&mut self, c: (W, W)) -> AssignedFq2<W, N> {
         (
-            self.base_integer_chip().assign_int_constant(c0),
-            self.base_integer_chip().assign_int_constant(c1),
+            self.base_integer_chip().assign_int_constant(c.0),
+            self.base_integer_chip().assign_int_constant(c.1),
         )
     }
     fn fq2_add(&mut self, a: &AssignedFq2<W, N>, b: &AssignedFq2<W, N>) -> AssignedFq2<W, N> {
@@ -82,19 +85,6 @@ pub trait Fq2ChipOps<W: BaseExt, N: FieldExt>: EccBaseIntegerChipWrapper<W, N> {
     fn fq2_conjugate(&mut self, a: &AssignedFq2<W, N>) -> AssignedFq2<W, N> {
         (a.0.clone(), self.base_integer_chip().int_neg(&a.1))
     }
-    fn fq2_mul_by_nonresidue(&mut self, a: &AssignedFq2<W, N>) -> AssignedFq2<W, N> {
-        let a2 = self.fq2_double(a);
-        let a4 = self.fq2_double(&a2);
-        let a8 = self.fq2_double(&a4);
-
-        let t = self.base_integer_chip().int_add(&a8.0, &a.0);
-        let c0 = self.base_integer_chip().int_sub(&t, &a.1);
-
-        let t = self.base_integer_chip().int_add(&a8.1, &a.0);
-        let c1 = self.base_integer_chip().int_add(&t, &a.1);
-
-        (c0, c1)
-    }
     fn fq2_unsafe_invert(&mut self, x: &AssignedFq2<W, N>) -> AssignedFq2<W, N> {
         let t0 = self.base_integer_chip().int_square(&x.0);
         let t1 = self.base_integer_chip().int_square(&x.1);
@@ -105,17 +95,9 @@ pub trait Fq2ChipOps<W: BaseExt, N: FieldExt>: EccBaseIntegerChipWrapper<W, N> {
         let c1 = self.base_integer_chip().int_neg(&c1);
         (c0, c1)
     }
-    fn fq2_frobenius_map(&mut self, x: &AssignedFq2<W, N>, power: usize) -> AssignedFq2<W, N> {
-        let v = self
-            .base_integer_chip()
-            .assign_int_constant(bn_to_field(&BigUint::from_bytes_le(
-                &FROBENIUS_COEFF_FQ2_C1[power % 2],
-            )));
-        (x.0.clone(), self.base_integer_chip().int_mul(&x.1, &v))
-    }
 }
 
-pub trait Fq6ChipOps<W: BaseExt, N: FieldExt>: Fq2ChipOps<W, N> {
+pub trait Fq6ChipOps<W: BaseExt, N: FieldExt>: Fq2ChipOps<W, N> + Fq2BnSpecificOps<W, N> {
     fn fq6_assert_equal(&mut self, x: &AssignedFq6<W, N>, y: &AssignedFq6<W, N>) {
         self.fq2_assert_equal(&x.0, &y.0);
         self.fq2_assert_equal(&x.1, &y.1);
@@ -192,9 +174,6 @@ pub trait Fq6ChipOps<W: BaseExt, N: FieldExt>: Fq2ChipOps<W, N> {
     }
     fn fq6_neg(&mut self, a: &AssignedFq6<W, N>) -> AssignedFq6<W, N> {
         (self.fq2_neg(&a.0), self.fq2_neg(&a.1), self.fq2_neg(&a.2))
-    }
-    fn fq6_mul_by_nonresidue(&mut self, a: &AssignedFq6<W, N>) -> AssignedFq6<W, N> {
-        (self.fq2_mul_by_nonresidue(&a.2), a.0.clone(), a.1.clone())
     }
     fn fq6_mul_by_1(&mut self, a: &AssignedFq6<W, N>, b1: &AssignedFq2<W, N>) -> AssignedFq6<W, N> {
         let ab11 = self.fq2_mul(&a.1, &b1);
@@ -285,25 +264,16 @@ pub trait Fq6ChipOps<W: BaseExt, N: FieldExt>: Fq2ChipOps<W, N> {
             self.fq2_mul(&t, &c2),
         )
     }
-    fn fq6_frobenius_map(&mut self, x: &AssignedFq6<W, N>, power: usize) -> AssignedFq6<W, N> {
-        let c0 = self.fq2_frobenius_map(&x.0, power);
-        let c1 = self.fq2_frobenius_map(&x.1, power);
-        let c2 = self.fq2_frobenius_map(&x.2, power);
-
-        let coeff_c1 =
-            FROBENIUS_COEFF_FQ6_C1[power % 6].map(|x| bn_to_field(&BigUint::from_bytes_le(&x)));
-        let coeff_c1 = self.fq2_assign_constant(coeff_c1[0], coeff_c1[1]);
-        let c1 = self.fq2_mul(&c1, &coeff_c1);
-        let coeff_c2 =
-            FROBENIUS_COEFF_FQ6_C2[power % 6].map(|x| bn_to_field(&BigUint::from_bytes_le(&x)));
-        let coeff_c2 = self.fq2_assign_constant(coeff_c2[0], coeff_c2[1]);
-        let c2 = self.fq2_mul(&c2, &coeff_c2);
-
-        (c0, c1, c2)
+    fn fq6_assign_constant(&mut self, c: ((W, W), (W, W), (W, W))) -> AssignedFq6<W, N> {
+        (
+            self.fq2_assign_constant(c.0),
+            self.fq2_assign_constant(c.1),
+            self.fq2_assign_constant(c.2),
+        )
     }
 }
 
-pub trait Fq12ChipOps<W: BaseExt, N: FieldExt>: Fq6ChipOps<W, N> {
+pub trait Fq12ChipOps<W: BaseExt, N: FieldExt>: Fq6ChipOps<W, N> + Fq6BnSpecificOps<W, N> {
     fn fq12_assert_one(&mut self, x: &AssignedFq12<W, N>) {
         let one = self.fq12_assign_one();
         self.fq12_assert_eq(x, &one);
@@ -461,17 +431,10 @@ pub trait Fq12ChipOps<W: BaseExt, N: FieldExt>: Fq6ChipOps<W, N> {
         let c1 = self.fq6_neg(&c1);
         (c0, c1)
     }
-    fn fq12_frobenius_map(&mut self, x: &AssignedFq12<W, N>, power: usize) -> AssignedFq12<W, N> {
-        let c0 = self.fq6_frobenius_map(&x.0, power);
-        let c1 = self.fq6_frobenius_map(&x.1, power);
-
-        let coeff =
-            FROBENIUS_COEFF_FQ12_C1[power % 12].map(|x| bn_to_field(&BigUint::from_bytes_le(&x)));
-        let coeff = self.fq2_assign_constant(coeff[0], coeff[1]);
-        let c1c0 = self.fq2_mul(&c1.0, &coeff);
-        let c1c1 = self.fq2_mul(&c1.1, &coeff);
-        let c1c2 = self.fq2_mul(&c1.2, &coeff);
-
-        (c0, (c1c0, c1c1, c1c2))
+    fn fq12_assign_constant(
+        &mut self,
+        c: (((W, W), (W, W), (W, W)), ((W, W), (W, W), (W, W))),
+    ) -> AssignedFq12<W, N> {
+        (self.fq6_assign_constant(c.0), self.fq6_assign_constant(c.1))
     }
 }

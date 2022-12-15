@@ -105,11 +105,7 @@ impl<N: FieldExt> Circuit<N> for TestCircuit<N> {
 }
 
 pub fn run_circuit_on_bn256(ctx: Context<Fr>, k: u32) {
-    println!(
-        "offset {} {}",
-        ctx.range_offset,
-        ctx.base_offset
-    );
+    println!("offset {} {}", ctx.range_offset, ctx.base_offset);
 
     let circuit = TestCircuit::<Fr> {
         records: Arc::try_unwrap(ctx.records).unwrap().into_inner().unwrap(),

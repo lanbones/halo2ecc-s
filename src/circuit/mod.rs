@@ -1,11 +1,11 @@
 pub mod base_chip;
+pub mod bls12_381_pairing_chip;
 pub mod bn256_constants;
+pub mod bn256_pairing_chip;
 pub mod ecc_chip;
 pub mod fq12;
 pub mod general_scalar_ecc_chip;
-pub mod general_scalar_pairing_chip;
 pub mod integer_chip;
 pub mod native_scalar_ecc_chip;
-pub mod native_scalar_pairing_chip;
 pub mod pairing_chip;
 pub mod range_chip;
