@@ -59,7 +59,7 @@ fn test_bn256_pairing_chip_over_bn256_fr() {
 
         ctx.fq12_assert_eq(&ab0, &ab1);
 
-        run_circuit_on_bn256(Rc::try_unwrap(ctx.0.ctx).unwrap().into_inner(), 22);
+        run_circuit_on_bn256(ctx.into(), 22);
     }
 
     {
@@ -89,6 +89,6 @@ fn test_bn256_pairing_chip_over_bn256_fr() {
 
         ctx.check_pairing(&[(&a, &b), (&neg_a, &b)]);
 
-        run_circuit_on_bn256(Rc::try_unwrap(ctx.0.ctx).unwrap().into_inner(), 22);
+        run_circuit_on_bn256(ctx.into(), 22);
     }
 }
